@@ -1,0 +1,36 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "app_wifi.c"
+        "app_mqtt.c"
+        "pet_ui.c"
+        "app_imu.c"
+        "app_audio.c"
+        "faces/face_happy.c"
+        "faces/face_neutral.c"
+        "faces/face_sad.c"
+        "faces/face_sleeping.c"
+        "faces/face_talk_1.c"
+        "faces/face_talk_2.c"
+        "faces/face_talk_3.c"
+        "faces/face_blink_happy.c"
+        "faces/face_blink_neutral.c"
+        "faces/face_blink_sad.c"
+        "faces/icon_food.c"
+        "faces/icon_energy.c"
+        "faces/icon_heart.c"
+    INCLUDE_DIRS "."
+    PRIV_REQUIRES
+        json
+        esp_wifi
+        nvs_flash
+        esp_netif
+        esp_event
+        mqtt
+        esp_http_client
+        mbedtls
+    EMBED_TXTFILES
+        "certs/AmazonRootCA1.pem"
+        "certs/device-cert.pem"
+        "certs/device-key.pem"
+)
