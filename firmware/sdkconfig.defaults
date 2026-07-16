@@ -1,0 +1,17 @@
+# Board + app configuration baked into the build so `idf.py build` just works.
+
+# The Waveshare board has 16 MB of flash.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+
+# Use our custom partition table (bigger app partition — see partitions.csv).
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# The ESP32-S3 on this board has 8 MB of PSRAM (octal). LVGL framebuffers
+# and audio buffers live there rather than in scarce internal RAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+
+# Mutual-TLS to AWS IoT needs a comfortable main-task stack.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

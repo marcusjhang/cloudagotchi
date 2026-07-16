@@ -1,0 +1,6 @@
+# Name,   Type, SubType, Offset,  Size
+# The default table caps the app at 1 MB; our binary (LVGL + TLS + audio)
+# is ~1.4 MB, so we give it a 3 MB app partition on the board's 16 MB flash.
+nvs,      data, nvs,     0x9000,  0x6000
+phy_init, data, phy,     0xf000,  0x1000
+factory,  app,  factory, 0x10000, 0x300000
