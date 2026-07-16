@@ -1,0 +1,5 @@
+## Cloudagotchi firmware dependencies.
+## The Waveshare BSP pulls in the display, touch, audio codec and LVGL 9.
+dependencies:
+  idf: '>=5.3'
+  waveshare/esp32_s3_touch_amoled_1_8: '^2.0.3'

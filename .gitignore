@@ -1,0 +1,23 @@
+# Secrets — never commit device credentials
+firmware/main/certs/*.pem
+firmware/main/certs/*.key
+!firmware/main/certs/AmazonRootCA1.pem
+
+# ESP-IDF
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+
+# CDK / Node
+backend/node_modules/
+backend/cdk.out/
+backend/*.js
+backend/*.d.ts
+!backend/jest.config.js
+backend/.cdk.staging/
+
+# Local tooling
+.claude/
+.DS_Store
