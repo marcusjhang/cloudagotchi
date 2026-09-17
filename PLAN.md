@@ -46,8 +46,8 @@ All firmware paths below are relative to `firmware/`.
 Pins: QSPI D0–D3 = GPIO 4/5/6/7, SCLK 11, CS 12, **TE on GPIO13 — never configure GPIO13**.
 I²C SDA 15, SCL 14.
 
-**Revision check (Phase 1):** BSP logs which touch controller it found. CST820 @ 0x15 ⇒ V2
-(BSP applies the 16 px x-gap automatically). FT3168 @ 0x38 ⇒ V1.
+**Revision: V2 (confirmed 2026-09-18)** — boot log: `co5300` panel driver, `Touch CST816S 0x15 found`.
+Serial port on Marcus's Mac: `/dev/cu.usbmodem2101`. ESP32-S3 rev v0.2, 8 MB PSRAM OK.
 
 ---
 
@@ -243,22 +243,20 @@ sad, dirty, sick` × 2 = 15 images ≈ 1.2 MB.
       `article-2` @ `e1f21f3`; this plan committed; default branch set to `tamagotchi`
 - **Done when:** repo exists, plan committed on the fork, nothing built yet.
 
-### Phase 1 — It's alive
-- [ ] Install ESP-IDF v5.5 (`git clone -b v5.5 --recursive …/esp-idf ~/esp/esp-idf && ./install.sh esp32s3`)
-- [ ] Strip: delete `backend/`, `scripts/`, `firmware/main/app_wifi.*`, `app_mqtt.*`, `certs/`,
-      `Kconfig.projbuild` Wi-Fi/IoT options, `EMBED_TXTFILES`; `main.c` keeps `pet_ui_start` +
-      `app_imu_start` only; rename `project(cloudagotchi)`; rewrite README for this project
-- [ ] `partitions.csv` → 12 MB factory app (room for sprites); drop the TLS/lwip sdkconfig lines
-- [ ] `sdkconfig.defaults`: add `CONFIG_ESPTOOLPY_FLASHMODE_QIO`, `MAIN_TASK_STACK_SIZE=8192`,
-      `COMPILER_OPTIMIZATION_PERF`, `SPIRAM_SPEED_40M` (keep), `FREERTOS_HZ=1000`
-- [ ] `idf.py set-target esp32s3 && idf.py build` — **do this before the board arrives**
-- [ ] Flash. Ghost face appears; tap → happy; shake → startled. Serial shows touch coords.
-- [ ] Note the revision from the BSP log. Commit `dependencies.lock`.
-- [ ] Add `journal.c`: boot reason + reset counter to NVS, printed at boot
-- **Done when:** cloudagotchi's face runs offline on your board from your repo.
-- **Effort:** 1 h with the board; 30 min of it can happen without.
+### Phase 1 — It's alive  ✅ 2026-09-18
+- [x] ESP-IDF v5.5 at `~/esp/esp-idf`, toolchain in `~/.espressif` (Python 3.14 env works)
+- [x] Stripped `backend/`, `scripts/`, Wi-Fi, MQTT, certs, Kconfig; `main.c` = display + face + shake
+- [x] `partitions.csv` 12 MB app; `sdkconfig.defaults` board/perf lines only
+- [x] Fixed upstream: `article-2` referenced `face_talk_3` without shipping it → pulled from `main`
+- [x] Build: 1.45 MB app, 88 % free. `dependencies.lock` committed (BSP 2.0.3, LVGL 9, co5300 2.2.0)
+- [x] Flashed; boots; V2 detected; placeholder ghost face on screen
+- [ ] → moved to Phase 3: `journal.c` (needs NVS init, which Phase 3 adds anyway)
+- [ ] → moved to Phase 3: IMU logs a false "Shake detected!" 80 ms after boot — add a 1 s warm-up
 
-### Phase 2 — Your sprite
+### Phase 2 — Your sprite  ⏸ deferred (2026-09-18: "use the placeholder for now")
+Phase 3 runs on cloudagotchi's placeholder faces; this phase slots in whenever art exists.
+State → placeholder mapping until then: idle/happy → `face_happy`, neutral → `face_neutral`,
+sad/sick/dirty → `face_sad`, asleep → `face_sleeping`, startled → `face_talk_3`.
 - [ ] `tools/sprites/PROMPTS.md`, `prepare_sprites.py`, `to_lvgl.py` (+ `requirements.txt`)
 - [ ] Generate `baby_idle_{0,1,2}` from the photo; process; convert
 - [ ] `sprites.h` + table: `const lv_image_dsc_t *sprite(stage, state, frame)`, `frames(stage, state)`
@@ -278,7 +276,9 @@ sad, dirty, sick` × 2 = 15 images ≈ 1.2 MB.
 - [ ] UI: action bar (§4.6), stat row for 5 stats, poop overlay, transient eating/happy anims,
       long-press-on-dead → new egg
 - [ ] `-DFAST_FORWARD=60` build for on-device tuning
-- [ ] Remaining sprites for baby (§6 minimum set)
+- [ ] `journal.c`: boot reason + reset counter in NVS, printed at boot (from Phase 1)
+- [ ] IMU warm-up guard against the boot-time false shake (from Phase 1)
+- [ ] Sprites: placeholder faces via the Phase 2 mapping; real art later
 - **Done when:** ignore it → sad → sick; feed/clean/medicine → happy; reset → same pet.
       Host sim green.
 - **Effort:** ~1 day.
