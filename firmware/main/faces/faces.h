@@ -16,3 +16,6 @@ extern const lv_image_dsc_t icon_heart;
 extern const lv_image_dsc_t face_blink_happy;
 extern const lv_image_dsc_t face_blink_neutral;
 extern const lv_image_dsc_t face_blink_sad;
+
+// Startled: wide eyes + "oh" (pulled from upstream main; article-2 referenced it without shipping it)
+extern const lv_image_dsc_t face_talk_3;

@@ -1,38 +1,26 @@
 # Board + app configuration baked into the build so `idf.py build` just works.
+# Each line has a reason; see PLAN.md §5 (hardware landmines).
 
-# The Waveshare board has 16 MB of flash.
+CONFIG_IDF_TARGET="esp32s3"
+
+# 16 MB QIO flash, custom table with a 12 MB app partition (sprites are
+# compiled in as C arrays and live in .rodata).
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
-
-# Use our custom partition table (bigger app partition — see partitions.csv).
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# The ESP32-S3 on this board has 8 MB of PSRAM (octal). LVGL framebuffers
-# and audio buffers live there rather than in scarce internal RAM.
+# 8 MB octal PSRAM. LVGL draw buffers live there. Stays at 40 MHz on purpose:
+# cloudagotchi saw display corruption at 80 MHz on this board.
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
-
-# Mutual-TLS to AWS IoT needs a comfortable main-task stack.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
-
-# Streaming audio from S3 across an ocean: TCP throughput = window / RTT.
-# The default 5.7 KB receive window caps a 160 ms RTT link at ~35 KB/s
-# theoretical (~15 KB/s real) — below the 32 KB/s the speaker consumes.
-# A 32 KB window lifts the ceiling to ~200 KB/s.
-CONFIG_LWIP_TCP_WND_DEFAULT=32768
-CONFIG_LWIP_TCP_SND_BUF_DEFAULT=16384
-CONFIG_LWIP_TCP_RECVMBOX_SIZE=32
-
-# Bigger TCP windows + two TLS sessions (MQTT + audio download) exhaust
-# internal RAM (mbedtls -0x7F00 ALLOC_FAILED). Put both lwip's and
-# mbedTLS's working memory in the 8 MB PSRAM instead.
-CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
-
-# Performance: 240 MHz CPU (like Waveshare's own LVGL demo) and a 1000 Hz
-# tick for responsive timers. PSRAM stays at 40 MHz on purpose: 80 MHz
-# paired with our DIO flash mode produced display corruption on this board.
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_SPIRAM_SPEED_40M=y
+
+# 240 MHz (default is 160), -O2, 1 kHz tick for responsive LVGL timers.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_FREERTOS_HZ=1000
+
+# The 3.5 KB default main stack overflows on the first big local array.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

@@ -1,54 +1,36 @@
-> **This fork → esp32-tamagotchi.** A fully on-device Tamagotchi (no cloud) built on
-> Cloudagotchi's `article-2` firmware, with AI-generated sprites. Work happens on the
-> `tamagotchi` branch. The plan is in [PLAN.md](PLAN.md). Upstream README follows.
+# esp32-tamagotchi
 
-# Cloudagotchi 👻
+A virtual pet for the **Waveshare ESP32-S3-Touch-AMOLED-1.8** (368×448 AMOLED, touch,
+RTC, IMU, speaker, battery). Sprites are AI-generated from a photo. Everything runs on
+the device — no cloud, no Wi-Fi.
 
-A virtual pet that lives on a **1.8" AMOLED ESP32-S3 board** — but whose *brain* lives in **AWS**.
+**Status:** Phase 1 — cloud stripped, builds offline. See [PLAN.md](PLAN.md).
 
-Cloudagotchi gets hungry while you sleep (EventBridge Scheduler says so), sulks when you ignore it (DynamoDB remembers), and every morning it trots on screen with a tiny newspaper to **read you the AWS news out loud** (Bedrock writes the briefing, Polly gives it a voice).
+## Where the code comes from
 
-![Architecture](docs/architecture.png)
+This is a fork of [cloudagotchi](https://github.com/tagazok/cloudagotchi) by Olivier Leplus
+(MIT), branched from its `article-2` state — ESP-IDF + Waveshare BSP + LVGL 9 on this exact
+board. Its AWS brain is removed; the pet's logic lives on the chip. Sleep/RTC patterns are
+informed by [pixelcat](https://github.com/toddsherman/pixelcat) and the
+[Waveshare AMOLED 1.8 field guide](https://github.com/s0lness/awesome-esp32/blob/main/guides/waveshare-amoled-18.md).
 
-## The article series
-
-This repository accompanies a 4-part article series. Each article has its own git branch containing the project exactly as it stands at the end of that article — `main` is the finished project.
-
-| # | Article | Branch | What gets built |
-|---|---------|--------|-----------------|
-| 1 | Meet Cloudagotchi: A Virtual Pet with a Cloud Brain | [`article-1`](../../tree/article-1) | AWS IoT Core connection, device identity, MQTT plumbing |
-| 2 | Giving It a Face: LVGL on a 1.8" AMOLED | [`article-2`](../../tree/article-2) | The animated pet, touch interactions, shake detection |
-| 3 | It Gets Hungry While You Sleep | [`article-3`](../../tree/article-3) | Lambda + DynamoDB + EventBridge pet state machine |
-| 4 | My Tamagotchi Reads Me the AWS News | [`article-4`](../../tree/article-4) | Bedrock + Polly daily news briefing, played on-device |
+## Build
 
 ```bash
-# Read along with article 2? Check out its branch:
-git checkout article-2
+. ~/esp/esp-idf/export.sh            # ESP-IDF v5.5
+cd firmware
+idf.py set-target esp32s3
+idf.py build
+idf.py -p /dev/cu.usbmodem* flash monitor   # Ctrl+] exits; black screen after flash → press reset once
 ```
 
-## Repository layout
+First build downloads the Waveshare BSP (`waveshare/esp32_s3_touch_amoled_1_8`) and the
+QMI8658 driver via the IDF Component Manager — needs internet.
 
-```
-cloudagotchi/
-├── firmware/          # ESP-IDF project for the ESP32-S3 board
-├── backend/           # AWS CDK app (TypeScript) — all the cloud resources
-├── scripts/           # Device provisioning helpers
-└── articles/          # The articles themselves (one folder per article)
-```
+## Layout
 
-## Hardware
-
-- [Waveshare ESP32-S3 Touch AMOLED 1.8](https://www.waveshare.com/esp32-s3-touch-amoled-1.8.htm)
-  (368×448 AMOLED, capacitive touch, QMI8658 IMU, ES8311 audio codec, mic, RTC, battery support)
-
-## Quick start (full project, `main` branch)
-
-1. **Backend:** `cd backend && npm install && npx cdk deploy --all`
-2. **Provision the device:** `./scripts/provision-device.sh cloudagotchi-01`
-3. **Firmware:** `cd firmware && idf.py menuconfig` (set Wi-Fi + IoT endpoint) `&& idf.py flash monitor`
-
-Each article walks through its part in detail.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+| Path | What |
+|---|---|
+| `firmware/main/` | ESP-IDF app: `main.c`, `pet_ui.c` (LVGL screen), `app_imu.c` (shake), `faces/` (placeholder sprites) |
+| `firmware/partitions.csv` | 12 MB app partition — sprites compile in |
+| `PLAN.md` | the plan, phase by phase |

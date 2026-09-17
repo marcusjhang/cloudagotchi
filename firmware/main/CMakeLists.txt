@@ -1,23 +1,10 @@
+file(GLOB FACE_SRCS "faces/*.c")
+
 idf_component_register(
     SRCS
         "main.c"
-        "app_wifi.c"
-        "app_mqtt.c"
         "pet_ui.c"
         "app_imu.c"
-        "faces/face_happy.c"
-        "faces/face_neutral.c"
-        "faces/face_sad.c"
-        "faces/face_sleeping.c"
-        "faces/face_blink_happy.c"
-        "faces/face_blink_neutral.c"
-        "faces/face_blink_sad.c"
-        "faces/icon_food.c"
-        "faces/icon_energy.c"
-        "faces/icon_heart.c"
+        ${FACE_SRCS}
     INCLUDE_DIRS "."
-    EMBED_TXTFILES
-        "certs/AmazonRootCA1.pem"
-        "certs/device-cert.pem"
-        "certs/device-key.pem"
 )

@@ -1,22 +1,16 @@
-# Secrets — never commit device credentials
-firmware/main/certs/*.pem
-firmware/main/certs/*.key
-!firmware/main/certs/AmazonRootCA1.pem
-
 # ESP-IDF
 firmware/build/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/managed_components/
-firmware/dependencies.lock
+# firmware/dependencies.lock is committed on purpose (pinned component versions)
 
-# CDK / Node
-backend/node_modules/
-backend/cdk.out/
-backend/*.js
-backend/*.d.ts
-!backend/jest.config.js
-backend/.cdk.staging/
+# Python
+.venv/
+__pycache__/
+
+# Raw AI sprite output before processing (large, regenerable)
+tools/sprites/raw/
 
 # Local tooling
 .claude/
