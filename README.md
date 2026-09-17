@@ -1,3 +1,7 @@
+> **This fork → esp32-tamagotchi.** A fully on-device Tamagotchi (no cloud) built on
+> Cloudagotchi's `article-2` firmware, with AI-generated sprites. Work happens on the
+> `tamagotchi` branch. The plan is in [PLAN.md](PLAN.md). Upstream README follows.
+
 # Cloudagotchi 👻
 
 A virtual pet that lives on a **1.8" AMOLED ESP32-S3 board** — but whose *brain* lives in **AWS**.
