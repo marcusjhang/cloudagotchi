@@ -27,7 +27,9 @@ static void imu_task(void *arg)
 {
     int jolts = 0;
     TickType_t window_start = 0;
-    TickType_t cooldown_until = 0;
+    // The first samples after init read as a jolt (the board was just reset,
+    // and the sensor's filters are settling): ignore the first 1.5 s.
+    TickType_t cooldown_until = xTaskGetTickCount() + pdMS_TO_TICKS(1500);
 
     while (true) {
         float ax, ay, az;

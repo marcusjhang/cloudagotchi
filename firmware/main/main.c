@@ -1,33 +1,24 @@
 /*
- * esp32-tamagotchi — Phase 1: it's alive.
+ * esp32-tamagotchi — Phase 3: it has needs.
  *
- * Boots the Waveshare BSP, puts the (placeholder) pet face on the AMOLED,
- * and wires touch + shake to local reactions. No cloud, no radio: from
- * Phase 3 the pet's state lives in NVS on this chip.
+ * Boot order matters: NVS first (journal + pet live there), then the screen
+ * (so the pet can be shown as soon as it is loaded), then the game task,
+ * then the IMU (its callback feeds the game).
  */
+#include "esp_err.h"
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "nvs_flash.h"
 
 #include "app_imu.h"
+#include "game.h"
+#include "journal.h"
 #include "pet_ui.h"
 
 static const char *TAG = "tamagotchi";
 
-// Human → pet. Phase 3 routes these into the game state (pet_act).
-static void on_interaction(pet_interaction_t what)
-{
-    switch (what) {
-    case PET_INTERACTION_PET:  ESP_LOGI(TAG, "interaction: pet");  break;
-    case PET_INTERACTION_FEED: ESP_LOGI(TAG, "interaction: feed"); break;
-    case PET_INTERACTION_PLAY: ESP_LOGI(TAG, "interaction: play"); break;
-    }
-}
-
 static void on_shake(void)
 {
-    pet_ui_react_startled();
-    on_interaction(PET_INTERACTION_PLAY);
+    game_act(PET_ACT_SHAKE);
 }
 
 void app_main(void)
@@ -39,8 +30,16 @@ void app_main(void)
     esp_log_level_set("lcd_panel.io.spi", ESP_LOG_NONE);
     esp_log_level_set("co5300_spi", ESP_LOG_NONE);
 
-    pet_ui_start(on_interaction);
-    pet_ui_set_state(80, 80, 80, PET_MOOD_NEUTRAL);  // placeholder until Phase 3
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS needs erasing (%s)", esp_err_to_name(err));
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
 
+    journal_init();
+    pet_ui_start(game_act);
+    game_start();
     ESP_ERROR_CHECK(app_imu_start(on_shake));
 }

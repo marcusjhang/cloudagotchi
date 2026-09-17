@@ -1,31 +1,28 @@
+/*
+ * The screen. Renders whatever snapshot the game last pushed; turns touches
+ * into pet_action_t via the callback. Knows nothing about the rules.
+ */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
-/** The pet's visible moods — driven by cloud state from article 3 onwards. */
-typedef enum {
-    PET_MOOD_HAPPY,
-    PET_MOOD_NEUTRAL,
-    PET_MOOD_SAD,
-    PET_MOOD_SLEEPING,
-} pet_mood_t;
+#include "pet.h"
 
-/** What the human just did — reported to the cloud. */
-typedef enum {
-    PET_INTERACTION_PET,    // tapped the ghost
-    PET_INTERACTION_FEED,   // picked a snack from the menu
-    PET_INTERACTION_PLAY,   // shook the board
-} pet_interaction_t;
+typedef struct {
+    uint8_t     stats[PET_STAT_COUNT];  // 0..100
+    pet_face_t  face;
+    pet_stage_t stage;
+    bool        asleep;
+    bool        dirty;
+    uint32_t    age_s;
+    uint8_t     weight;
+    uint16_t    mistakes;
+    uint32_t    boots;
+} pet_ui_snapshot_t;
 
-typedef void (*pet_interaction_cb_t)(pet_interaction_t what);
+typedef void (*pet_ui_action_cb_t)(pet_action_t a);
 
-/** Bring the pet to life on the AMOLED. Callback fires on every interaction. */
-void pet_ui_start(pet_interaction_cb_t on_interaction);
-
-/** Update the pet's stats (0–100 each) and mood. Safe to call from any task. */
-void pet_ui_set_state(uint8_t hunger, uint8_t energy, uint8_t mood_value, pet_mood_t mood);
-
-/** One-off reactions (sprite flashes). Safe to call from any task. */
-void pet_ui_react_happy(void);    // happy face (tap, feed)
-void pet_ui_react_startled(void); // wide eyes + "oh" (shake)
-
+void pet_ui_start(pet_ui_action_cb_t on_action);   // brings up the display; call first
+void pet_ui_update(const pet_ui_snapshot_t *s);     // safe from any task
+void pet_ui_toast(const char *msg);                 // safe from any task; ~1.5 s

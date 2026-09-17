@@ -1,231 +1,393 @@
 /*
- * The pet's face — minimal and boring, on purpose.
+ * Layout (368 x 448):
  *
- * Display setup: 100% BSP defaults. No custom buffers, no config overrides,
- * no idle animations, no position animations. The screen shows: three stat
- * bars and one face sprite. The face only changes
- * by swapping which sprite is shown — a blink, a mood, a talk frame are all
- * the same operation. Nothing here can outrun the display.
+ *   status strip     "baby · 2h 13m"                       (later: battery)
+ *   stat row         FOOD  FUN  ZZZ  CLEAN  HP   five bars
+ *   face             one image widget, swapped per state (+ poop blob)
+ *   caption          "hungry" / "zzz" / "nom nom" ...
+ *   toast            "not hungry" for blocked actions
+ *   action bar       FEED  PLAY  LIGHT  CLEAN  MED  INFO   (long-press FEED = snack)
+ *
+ * Touch on this glass lands 15-25 px below where you aim (field guide), so
+ * every target gets an extended click area and nothing is under 40 px tall.
+ * Every touch is logged at INFO - that log is how those numbers were found.
  */
 #include "pet_ui.h"
 
-#include "esp_log.h"
-#include "esp_heap_caps.h"
+#include <stdio.h>
+
 #include "bsp/esp32_s3_touch_amoled_1_8.h"
+#include "esp_log.h"
 #include "lvgl.h"
+
 #include "faces/faces.h"
 
-static pet_interaction_cb_t s_on_interaction;
+static const char *TAG = "pet_ui";
 
-static lv_obj_t *s_face;     // the one image widget
-static lv_obj_t *s_bars[3];  // hunger, energy, mood
-static pet_mood_t s_mood = PET_MOOD_NEUTRAL;
+#define BLINK_PERIOD_MS 4200
+#define BLINK_MS        120
+#define TOAST_MS        1500
+#define REPAINT_MS      15000
+#define EXT_CLICK_PX    20
 
-static lv_timer_t *s_blink_timer;
-static lv_timer_t *s_idle_timer;
-static bool s_dozing;   // fell asleep from boredom (local nap, not cloud night)
+static pet_ui_action_cb_t s_on_action;
 
-/* ---------- helpers ------------------------------------------------------ */
+static lv_obj_t *s_status;
+static lv_obj_t *s_bars[PET_STAT_COUNT];
+static lv_obj_t *s_face;
+static lv_obj_t *s_poop;
+static lv_obj_t *s_caption;
+static lv_obj_t *s_toast;
+static lv_obj_t *s_info;
+static lv_obj_t *s_info_text;
+static lv_timer_t *s_toast_timer;
 
-static const lv_image_dsc_t *mood_sprite(pet_mood_t mood)
+static pet_ui_snapshot_t s_snap;
+static bool s_have_snap;
+static const lv_image_dsc_t *s_shown;
+
+static const struct {
+    const char *label;
+    uint32_t color;
+} STAT_STYLE[PET_STAT_COUNT] = {
+    [PET_STAT_FULLNESS]  = {"FOOD",  0x9CC959},
+    [PET_STAT_HAPPINESS] = {"FUN",   0xFF6392},
+    [PET_STAT_ENERGY]    = {"ZZZ",   0x2EC4B6},
+    [PET_STAT_HYGIENE]   = {"CLEAN", 0x5DA9E9},
+    [PET_STAT_HEALTH]    = {"HP",    0xFF5A5F},
+};
+
+/* ---------- face selection ------------------------------------------------ */
+
+// Placeholder mapping (cloudagotchi's ghost) until Phase 2 delivers real art.
+static const lv_image_dsc_t *face_for(pet_face_t f, bool blink)
 {
-    switch (mood) {
-    case PET_MOOD_HAPPY:    return &face_happy;
-    case PET_MOOD_SAD:      return &face_sad;
-    case PET_MOOD_SLEEPING: return &face_sleeping;
-    default:                return &face_neutral;
+    switch (f) {
+    case PET_FACE_HAPPY:
+    case PET_FACE_EATING:
+    case PET_FACE_PLAYING:  return blink ? &face_blink_happy : &face_happy;
+    case PET_FACE_SAD:
+    case PET_FACE_SICK:
+    case PET_FACE_DEAD:     return blink ? &face_blink_sad : &face_sad;
+    case PET_FACE_SLEEPING: return &face_sleeping;
+    case PET_FACE_STARTLED: return &face_talk_3;
+    case PET_FACE_EGG:
+    case PET_FACE_IDLE:
+    case PET_FACE_DIRTY:
+    default:                return blink ? &face_blink_neutral : &face_neutral;
     }
 }
 
-// Swap the face sprite AND invalidate the whole widget area. Without the
-// explicit invalidate, a dropped SPI transfer can leave slivers of the
-// previous sprite on screen (the panel silently loses chunks now and then),
-// so a wide happy smile "sticks" behind a narrower neutral mouth.
-static void set_face(const lv_image_dsc_t *src)
+static bool blinkable(pet_face_t f)
 {
+    return f == PET_FACE_IDLE || f == PET_FACE_HAPPY || f == PET_FACE_SAD ||
+           f == PET_FACE_DIRTY || f == PET_FACE_EGG;
+}
+
+static const char *caption_for(const pet_ui_snapshot_t *s)
+{
+    switch (s->face) {
+    case PET_FACE_EGG:      return "an egg. wait for it";
+    case PET_FACE_EATING:   return "nom nom";
+    case PET_FACE_PLAYING:  return "wheee";
+    case PET_FACE_STARTLED: return "!!";
+    case PET_FACE_SLEEPING: return "zzz";
+    case PET_FACE_SICK:     return "sick - needs MED";
+    case PET_FACE_DIRTY:    return "clean me";
+    case PET_FACE_DEAD:     return "R.I.P.  (hold face: new egg)";
+    case PET_FACE_SAD: {
+        // Name the lowest core need so the owner knows which button to press.
+        pet_stat_t worst = PET_STAT_FULLNESS;
+        for (int i = 0; i < PET_STAT_HEALTH; i++) {
+            if (i == PET_STAT_ENERGY) continue;
+            if (s->stats[i] < s->stats[worst]) worst = (pet_stat_t)i;
+        }
+        switch (worst) {
+        case PET_STAT_HAPPINESS: return "bored";
+        case PET_STAT_HYGIENE:   return "stinky";
+        default:                 return "hungry";
+        }
+    }
+    case PET_FACE_HAPPY:    return "";
+    default:                return "";
+    }
+}
+
+// Swap the sprite and invalidate: a dropped QSPI transfer can leave slivers
+// of the previous sprite, and a plain set_src only repaints the diff.
+static void show_face(const lv_image_dsc_t *src)
+{
+    if (src == s_shown) return;
+    s_shown = src;
     lv_image_set_src(s_face, src);
     lv_obj_invalidate(s_face);
 }
 
-// One stat row: [icon] [bar]. Three of them across the top of the screen.
-// The icon is generously padded so it doubles as a TAP TARGET — tapping
-// the burger feeds the pet (the only stat the pet can't refill itself).
-static lv_obj_t *make_stat_row(lv_obj_t *parent, const lv_image_dsc_t *icon,
-                               lv_color_t color, int x_ofs,
-                               lv_event_cb_t on_tap)
+/* ---------- timers --------------------------------------------------------- */
+
+static void blink_open_cb(lv_timer_t *t)
 {
-    lv_obj_t *icon_w = lv_image_create(parent);
-    lv_image_set_src(icon_w, icon);
-    lv_obj_align(icon_w, LV_ALIGN_TOP_MID, x_ofs - 34, 12);
-    if (on_tap != NULL) {
-        lv_obj_add_flag(icon_w, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(icon_w, 14); // fat finger friendly
-        lv_obj_add_event_cb(icon_w, on_tap, LV_EVENT_CLICKED, NULL);
-    }
-
-    lv_obj_t *bar = lv_bar_create(parent);
-    lv_obj_set_size(bar, 62, 12);
-    lv_obj_align(bar, LV_ALIGN_TOP_MID, x_ofs + 18, 20);
-    lv_bar_set_range(bar, 0, 100);
-    lv_bar_set_value(bar, 100, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x1A2530), LV_PART_MAIN);
-    lv_obj_set_style_border_color(bar, color, LV_PART_MAIN);
-    lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_opa(bar, LV_OPA_60, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(bar, color, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(bar, 6, LV_PART_MAIN);
-    lv_obj_set_style_radius(bar, 6, LV_PART_INDICATOR);
-    return bar;
-}
-
-/* ---------- blink: two-frame image swap --------------------------------- */
-
-static void blink_close_cb(lv_timer_t *t)
-{
-    // Re-open the eyes — unless the pet started talking or dozed off
-    // during the 120 ms the eyes were shut.
-    if (!s_dozing) set_face(mood_sprite(s_mood));
+    if (s_have_snap) show_face(face_for(s_snap.face, false));
     lv_timer_delete(t);
 }
 
-static void blink_timer_cb(lv_timer_t *t)
+static void blink_cb(lv_timer_t *t)
 {
-    if (s_dozing || s_mood == PET_MOOD_SLEEPING) return;
-    // Dedicated blink frame: closed eyes, SAME mouth as the current mood —
-    // so a blink only moves the eyes. (v1 borrowed the sleeping sprite here,
-    // which flashed its zzz + different mouth for 120 ms. Uncanny.)
-    switch (s_mood) {
-    case PET_MOOD_HAPPY: set_face(&face_blink_happy);  break;
-    case PET_MOOD_SAD:   set_face(&face_blink_sad);    break;
-    default:             set_face(&face_blink_neutral); break;
-    }
-    lv_timer_create(blink_close_cb, 120, NULL);
+    (void)t;
+    if (!s_have_snap || !blinkable(s_snap.face)) return;
+    show_face(face_for(s_snap.face, true));
+    lv_timer_create(blink_open_cb, BLINK_MS, NULL);
 }
 
-// Self-healing: the panel occasionally drops SPI transfer chunks, leaving
-// stale slivers on screen that nothing repaints. Wipe the slate every 15 s.
-static void repaint_timer_cb(lv_timer_t *t)
+static void repaint_cb(lv_timer_t *t)
 {
+    (void)t;
     lv_obj_invalidate(lv_screen_active());
 }
 
-/* ---------- dozing: fall asleep when bored, wake on interaction ---------- */
-
-// 2 minutes with no interaction → the pet nods off (zzz sprite). This is a
-// LOCAL nap: cloud state is untouched and bars keep updating underneath.
-static void idle_timer_cb(lv_timer_t *t)
+static void toast_hide_cb(lv_timer_t *t)
 {
-    s_dozing = true;
-    set_face(&face_sleeping);   // the zzz finally has its moment
+    (void)t;
+    lv_obj_set_hidden(s_toast, true);
+    s_toast_timer = NULL;
 }
 
-// Any interaction resets the boredom clock — and wakes the pet if dozing.
-static void note_activity(void)
+/* ---------- rendering a snapshot ------------------------------------------- */
+
+static void fmt_age(char *buf, size_t n, uint32_t s)
 {
-    if (s_idle_timer) lv_timer_reset(s_idle_timer);
-    if (s_dozing) {
-        s_dozing = false;
-        set_face(mood_sprite(s_mood));
+    const uint32_t d = s / 86400, h = (s / 3600) % 24, m = (s / 60) % 60;
+    if (d) snprintf(buf, n, "%lud %luh", (unsigned long)d, (unsigned long)h);
+    else   snprintf(buf, n, "%luh %02lum", (unsigned long)h, (unsigned long)m);
+}
+
+// Must hold the display lock.
+static void render(const pet_ui_snapshot_t *s)
+{
+    char age[24], line[64];
+    fmt_age(age, sizeof(age), s->age_s);
+    snprintf(line, sizeof(line), "%s  ·  %s", pet_stage_name(s->stage), age);
+    lv_label_set_text(s_status, line);
+
+    for (int i = 0; i < PET_STAT_COUNT; i++) {
+        lv_bar_set_value(s_bars[i], s->stats[i], LV_ANIM_OFF);
+    }
+
+    show_face(face_for(s->face, false));
+    lv_obj_set_hidden(s_poop, !s->dirty);
+    lv_label_set_text(s_caption, caption_for(s));
+
+    if (!lv_obj_is_hidden(s_info)) {
+        char info[160];
+        snprintf(info, sizeof(info),
+                 "stage      %s\nage        %s\nweight     %u\nmistakes   %u\nboots      %lu\n\n"
+                 "hold FEED for a snack\nhold the face when dead",
+                 pet_stage_name(s->stage), age, s->weight, s->mistakes, (unsigned long)s->boots);
+        lv_label_set_text(s_info_text, info);
     }
 }
 
-/* ---------- reactions ----------------------------------------------------*/
-
-void pet_ui_react_happy(void)
-{
-    // Recursive lock: safe from the LVGL task (tap callbacks) AND required
-    // from other tasks. Without it, cross-task calls (e.g. the IMU task's
-    // shake) are undefined behavior — typically a silent no-op.
-    bsp_display_lock(0);
-    note_activity();
-    set_face(&face_happy);
-    bsp_display_unlock();
-    // The next blink or state update restores the mood face.
-}
-
-void pet_ui_react_startled(void)
+void pet_ui_update(const pet_ui_snapshot_t *s)
 {
     bsp_display_lock(0);
-    note_activity();          // a shake definitely wakes a napping pet
-    set_face(&face_talk_3);   // wide eyes + "oh"
+    s_snap = *s;
+    s_have_snap = true;
+    render(s);
     bsp_display_unlock();
 }
 
-/* ---------- input ---------------------------------------------------------*/
-
-static void face_clicked_cb(lv_event_t *e)
-{
-    pet_ui_react_happy();
-    if (s_on_interaction) s_on_interaction(PET_INTERACTION_PET);
-}
-
-static void food_clicked_cb(lv_event_t *e)
-{
-    // Nom nom: happy flash + tell the cloud we ate.
-    pet_ui_react_happy();
-    if (s_on_interaction) s_on_interaction(PET_INTERACTION_FEED);
-}
-
-/* ---------- cloud state → face ------------------------------------------- */
-
-void pet_ui_set_state(uint8_t hunger, uint8_t energy, uint8_t mood_value, pet_mood_t mood)
+void pet_ui_toast(const char *msg)
 {
     bsp_display_lock(0);
-    lv_bar_set_value(s_bars[0], hunger, LV_ANIM_OFF);
-    lv_bar_set_value(s_bars[1], energy, LV_ANIM_OFF);
-    lv_bar_set_value(s_bars[2], mood_value, LV_ANIM_OFF);
-    s_mood = mood;
-    // Cloud updates refresh the bars but do NOT wake a napping pet —
-    // only human interaction does.
-    if (!s_dozing) set_face(mood_sprite(mood));
+    lv_label_set_text(s_toast, msg);
+    lv_obj_set_hidden(s_toast, false);
+    if (s_toast_timer) lv_timer_reset(s_toast_timer);
+    else s_toast_timer = lv_timer_create(toast_hide_cb, TOAST_MS, NULL);
     bsp_display_unlock();
 }
 
-/* ---------- entry point --------------------------------------------------*/
+/* ---------- input ----------------------------------------------------------- */
 
-void pet_ui_start(pet_interaction_cb_t on_interaction)
+static void touch_log_cb(lv_event_t *e)
 {
-    s_on_interaction = on_interaction;
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_active(), &p);
+    ESP_LOGI(TAG, "touch %s %d,%d", lv_event_get_code(e) == LV_EVENT_PRESSED ? "down" : "up  ",
+             (int)p.x, (int)p.y);
+}
 
-    // Vendor defaults, nothing else — the BSP's partial-mode path is the
-    // only rendering mode its SPI flush pipeline actually supports (a
-    // full-refresh experiment here produced an uninitialized white frame).
-    // Stale-sliver artifacts are handled by set_face() invalidation plus
-    // the periodic repaint below.
+static void action_cb(lv_event_t *e)
+{
+    const pet_action_t a = (pet_action_t)(uintptr_t)lv_event_get_user_data(e);
+    if (s_on_action) s_on_action(a);
+}
+
+static void feed_cb(lv_event_t *e)
+{
+    // Short tap = meal, long press = snack. LVGL sends LONG_PRESSED at
+    // long_press_time and SHORT_CLICKED only if released before it.
+    const lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_SHORT_CLICKED)     s_on_action(PET_ACT_FEED_MEAL);
+    else if (code == LV_EVENT_LONG_PRESSED) s_on_action(PET_ACT_FEED_SNACK);
+}
+
+static void face_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) s_on_action(PET_ACT_NEW_EGG);
+}
+
+static void info_cb(lv_event_t *e)
+{
+    (void)e;
+    const bool hidden = lv_obj_is_hidden(s_info);
+    lv_obj_set_hidden(s_info, !hidden);
+    if (hidden && s_have_snap) render(&s_snap);
+}
+
+/* ---------- building the screen ---------------------------------------------- */
+
+static lv_obj_t *make_bar(lv_obj_t *parent, int i, int x)
+{
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, STAT_STYLE[i].label);
+    lv_obj_set_style_text_color(label, lv_color_hex(STAT_STYLE[i].color), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+    lv_obj_set_width(label, 60);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(label, x, 34);
+
+    lv_obj_t *bar = lv_bar_create(parent);
+    lv_obj_set_size(bar, 60, 10);
+    lv_obj_set_pos(bar, x, 56);
+    lv_bar_set_range(bar, 0, 100);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(0x1A2530), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(STAT_STYLE[i].color), LV_PART_INDICATOR);
+    lv_obj_set_style_radius(bar, 5, LV_PART_MAIN);
+    lv_obj_set_style_radius(bar, 5, LV_PART_INDICATOR);
+    return bar;
+}
+
+static lv_obj_t *make_button(lv_obj_t *parent, int i, const char *text)
+{
+    lv_obj_t *btn = lv_button_create(parent);
+    lv_obj_set_size(btn, 54, 56);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_LEFT, 7 + i * 60, -12);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A2530), 0);
+    lv_obj_set_style_radius(btn, 10, 0);
+    lv_obj_set_style_shadow_width(btn, 0, 0);
+    lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
+
+    lv_obj_t *label = lv_label_create(btn);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_center(label);
+    return btn;
+}
+
+void pet_ui_start(pet_ui_action_cb_t on_action)
+{
+    s_on_action = on_action;
+
+    // Vendor defaults: partial-mode flush is the only path this BSP's SPI
+    // pipeline supports well (a full-refresh experiment upstream produced a
+    // blank white frame).
     bsp_display_start();
-
     bsp_display_lock(0);
+    bsp_display_brightness_set(100);  // a panel command on the pixel bus: under the lock
 
-    // Brightness starts at 0 and is a panel command on the pixel bus:
-    // send it under the lock.
-    bsp_display_brightness_set(100);
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);  // AMOLED: black = pixels off
+    lv_obj_set_scrollable(scr, false);
 
-    lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, lv_color_black(), 0); // AMOLED: black = off
+    // status strip
+    s_status = lv_label_create(scr);
+    lv_obj_set_style_text_font(s_status, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(s_status, lv_color_hex(0x8A9BB0), 0);
+    lv_obj_set_pos(s_status, 16, 10);
+    lv_label_set_text(s_status, "");
 
-    // Stat rows: 🍔 hunger (orange, tappable = FEED), ⚡ energy (teal),
-    // ❤️ mood (pink).
-    // Hunger bar in avocado-flesh green (yellow-green, deliberately distinct
-    // from the teal energy bar beside it).
-    s_bars[0] = make_stat_row(screen, &icon_food,   lv_color_hex(0x9CC959), -122, food_clicked_cb);
-    s_bars[1] = make_stat_row(screen, &icon_energy, lv_color_hex(0x2EC4B6),    0, NULL);
-    s_bars[2] = make_stat_row(screen, &icon_heart,  lv_color_hex(0xFF6392),  122, NULL);
+    // stat row: 5 columns of 64 px, 4 px gaps, centred
+    for (int i = 0; i < PET_STAT_COUNT; i++) {
+        s_bars[i] = make_bar(scr, i, 16 + i * 68);
+    }
 
-    // The face: ONE static image widget, centered. That's the whole pet.
-    s_face = lv_image_create(screen);
-    set_face(&face_neutral);
-    lv_obj_align(s_face, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_add_flag(s_face, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(s_face, face_clicked_cb, LV_EVENT_CLICKED, NULL);
+    // the face
+    s_face = lv_image_create(scr);
+    lv_obj_align(s_face, LV_ALIGN_CENTER, 0, -14);
+    lv_obj_set_clickable(s_face, true);
+    lv_obj_set_ext_click_area(s_face, EXT_CLICK_PX);
+    lv_obj_add_event_cb(s_face, face_cb, LV_EVENT_LONG_PRESSED, NULL);
+    show_face(&face_neutral);
 
-    // Blink every ~4 s by swapping to the closed-eyes sprite for 120 ms.
-    s_blink_timer = lv_timer_create(blink_timer_cb, 4200, NULL);
+    // poop: a brown blob by its feet (placeholder art)
+    s_poop = lv_obj_create(scr);
+    lv_obj_set_size(s_poop, 26, 20);
+    lv_obj_set_style_radius(s_poop, 10, 0);
+    lv_obj_set_style_bg_color(s_poop, lv_color_hex(0x6B4423), 0);
+    lv_obj_set_style_border_width(s_poop, 0, 0);
+    lv_obj_align_to(s_poop, s_face, LV_ALIGN_BOTTOM_RIGHT, 34, 6);
+    lv_obj_set_hidden(s_poop, true);
 
-    // Periodic self-heal against dropped SPI chunks (ghost slivers).
-    lv_timer_create(repaint_timer_cb, 15000, NULL);
+    // caption under the face
+    s_caption = lv_label_create(scr);
+    lv_obj_set_style_text_font(s_caption, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(s_caption, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_width(s_caption, 340);
+    lv_obj_set_style_text_align(s_caption, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(s_caption, LV_ALIGN_CENTER, 0, 96);
+    lv_label_set_text(s_caption, "");
 
-    // Doze off after 2 minutes without interaction; any touch/shake wakes.
-    s_idle_timer = lv_timer_create(idle_timer_cb, 120000, NULL);
+    // toast for blocked actions
+    s_toast = lv_label_create(scr);
+    lv_obj_set_style_text_font(s_toast, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(s_toast, lv_color_hex(0xFFD166), 0);
+    lv_obj_set_width(s_toast, 340);
+    lv_obj_set_style_text_align(s_toast, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(s_toast, LV_ALIGN_BOTTOM_MID, 0, -80);
+    lv_obj_set_hidden(s_toast, true);
+
+    // action bar
+    static const struct { const char *text; pet_action_t act; } BTN[] = {
+        {"FEED", PET_ACT_FEED_MEAL}, {"PLAY", PET_ACT_PLAY}, {"LIGHT", PET_ACT_LIGHTS},
+        {"CLEAN", PET_ACT_CLEAN},    {"MED", PET_ACT_MEDICINE},
+    };
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t *btn = make_button(scr, i, BTN[i].text);
+        if (BTN[i].act == PET_ACT_FEED_MEAL) {
+            lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_SHORT_CLICKED, NULL);
+            lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_LONG_PRESSED, NULL);
+        } else {
+            lv_obj_add_event_cb(btn, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)BTN[i].act);
+        }
+    }
+    lv_obj_add_event_cb(make_button(scr, 5, "INFO"), info_cb, LV_EVENT_CLICKED, NULL);
+
+    // info overlay (INFO toggles; tap it to close)
+    s_info = lv_obj_create(scr);
+    lv_obj_set_size(s_info, 300, 250);
+    lv_obj_align(s_info, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_bg_color(s_info, lv_color_hex(0x0B1420), 0);
+    lv_obj_set_style_border_color(s_info, lv_color_hex(0x2F9BFF), 0);
+    lv_obj_set_style_border_width(s_info, 1, 0);
+    lv_obj_set_style_radius(s_info, 12, 0);
+    lv_obj_set_scrollable(s_info, false);
+    lv_obj_add_event_cb(s_info, info_cb, LV_EVENT_CLICKED, NULL);
+    s_info_text = lv_label_create(s_info);
+    lv_obj_set_style_text_font(s_info_text, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(s_info_text, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_align(s_info_text, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_hidden(s_info, true);
+
+    // touch log: every press/release with coordinates, permanently
+    lv_indev_t *indev = lv_indev_get_next(NULL);
+    if (indev) {
+        lv_indev_add_event_cb(indev, touch_log_cb, LV_EVENT_PRESSED, NULL);
+        lv_indev_add_event_cb(indev, touch_log_cb, LV_EVENT_RELEASED, NULL);
+    }
+
+    lv_timer_create(blink_cb, BLINK_PERIOD_MS, NULL);
+    lv_timer_create(repaint_cb, REPAINT_MS, NULL);  // self-heal against dropped SPI chunks
 
     bsp_display_unlock();
 }
