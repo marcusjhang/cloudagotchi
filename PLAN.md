@@ -266,22 +266,24 @@ sad/sick/dirty → `face_sad`, asleep → `face_sleeping`, startled → `face_ta
 - **Done when:** your pet breathes on the AMOLED, crisp pixels, no slivers after 10 min.
 - **Effort:** 2 h code + your generation time.
 
-### Phase 3 — Game loop
-- [ ] `config.h` with §4.2–4.4 numbers, each with a comment saying why
-- [ ] `pet.c`: `pet_new`, `pet_apply(now)`, `pet_act`, `pet_face`, `pet_stage` — pure, no ESP headers
-- [ ] `tools/sim/`: host build (`cc pet.c sim.c`), scripted 30-day owner routines, assertions
-      ("fed twice a day stays > 40 fullness", "ignored 36 h → sad, 72 h → sick", "never NaN/overflow")
-- [ ] `persist.c`: NVS blob, versioned; save on every action + 5 min timer
-- [ ] `game` task at 1 Hz: `pet_apply(time(NULL))` → `pet_ui_set_state`
-- [ ] UI: action bar (§4.6), stat row for 5 stats, poop overlay, transient eating/happy anims,
-      long-press-on-dead → new egg
-- [ ] `-DFAST_FORWARD=60` build for on-device tuning
-- [ ] `journal.c`: boot reason + reset counter in NVS, printed at boot (from Phase 1)
-- [ ] IMU warm-up guard against the boot-time false shake (from Phase 1)
-- [ ] Sprites: placeholder faces via the Phase 2 mapping; real art later
-- **Done when:** ignore it → sad → sick; feed/clean/medicine → happy; reset → same pet.
-      Host sim green.
-- **Effort:** ~1 day.
+### Phase 3 — Game loop  (code done 2026-09-18, device verification pending — see TASKS.md)
+- [x] `config.h` with the numbers, each with a comment saying why (retuned after the sim: see below)
+- [x] `pet.c`: `pet_new`, `pet_apply(now)`, `pet_act`, `pet_face` — pure, no ESP headers
+- [x] `tools/sim/`: neglect / good owner (30 d) / lazy owner / one visit / edges, all asserting
+- [x] `persist.c`: NVS blob, versioned; save on every action + 5 min timer
+- [x] `game.c` task at 1 Hz → `pet_ui_update(snapshot)`
+- [x] UI: action bar, 5 stat bars, poop blob, captions, toast, INFO overlay, long-press-on-dead → new egg
+- [ ] `-DFAST_FORWARD=60` wired into the build
+- [x] `journal.c`: boot reason + reset counter in NVS, printed at boot
+- [x] IMU warm-up guard against the boot-time false shake
+- [x] Sprites: placeholder faces via the Phase 2 mapping
+- [ ] **Verified on device** (TASKS.md → Now)
+- **Done when:** ignore it → sad → sick; feed/clean/medicine → happy; reset → same pet. Host sim green ✅.
+
+What the sim changed (the first numbers were a chore): energy is never "neglect" (the pet naps);
+cleaning resets the poop timer and poop is cosmetic for 2 h; sleep pauses needs (10 %); health
+only recovers when every core stat > 50. Result: 3 visits/day → happy adult, 0 mistakes;
+2 visits/day → alive but grumpy; 1 visit/day → dead in ~2 days; never touched → dead in ~34 h.
 
 ### Phase 4 — Time, sleep, battery
 - [ ] `rtc.c`: PCF85063 on `bsp_i2c_get_handle()`; read; oscillator-stop flag; set from build
