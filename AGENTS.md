@@ -72,6 +72,10 @@ The touch log (`pet_ui: touch down x,y`) is permanent by design.
 - `tools/check.sh` must be green before you commit: it runs the rules sim
   (`firmware/main/pet.c`) and the hardware-math tests (`firmware/main/hw_math.h`).
   Any new pure logic (no ESP headers) should get a host test there.
+- **UI craft.** Any screen/button work uses the vendored `lvgl-ui` skill
+  (`.agents/skills/lvgl-ui`, source `marcusjhang/lvgl-ui`, pinned in `skills-lock.json`):
+  design tokens, the single action-button component with pressed/active/disabled states,
+  icon strategy and the pre-ship checklist. Read it before editing `pet_ui.c`.
 - **Code-review gate.** Clearing any feature or milestone requires an `ocr` review with
   **all P1 (critical/high) findings fixed** before the commit. Use delegation mode so the
   agent does the thinking:

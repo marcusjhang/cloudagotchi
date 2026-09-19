@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "lvgl-ui": {
+      "source": "marcusjhang/lvgl-ui",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "d01d313e1acc998567fb0d7c0fa68f23fa3486b68e91609228864c135e5660f5"
+    }
+  }
+}
