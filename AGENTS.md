@@ -28,12 +28,14 @@ gone and the pet's rules live in `firmware/main/pet.c`.
 | `firmware/main/persist.c` `journal.c` | NVS blob for the pet; boot count + reset reason. |
 | `firmware/main/app_imu.c` | Shake detector (QMI8658, 50 Hz task). |
 | `firmware/main/faces/` | Placeholder sprites (RGB565A8 `lv_image_dsc_t`, from upstream). |
-| `tools/sim/` | Host simulator for the rules. **Run it before and after touching `pet.c`/`config.h`.** |
+| `tools/sim/`, `tools/tests/` | Host tests: game rules + hardware math. **`tools/check.sh` before you commit.** |
 
 ## Commands
 
 ```bash
-# rules (no hardware, < 1 s)
+# host tests (no hardware, < 1 s): game rules + hardware math
+tools/check.sh
+# ...or just the game rules
 tools/sim/run.sh
 
 # firmware
@@ -57,12 +59,14 @@ s.close(); print(buf.decode("utf-8", "replace"))
 PY
 ```
 
-`FAST_FORWARD` (game time ×N) is a `#define` in `config.h`; wiring it to a build flag is on
-TASKS.md. The touch log (`pet_ui: touch down x,y`) is permanent by design.
+`FAST_FORWARD` (game time ×N) is wired to a build flag: `idf.py -DFAST_FORWARD=60 build`.
+The touch log (`pet_ui: touch down x,y`) is permanent by design.
 
 ## Rules of the road
 
-- `tools/sim/run.sh` must be green before you commit a change to the rules.
+- `tools/check.sh` must be green before you commit: it runs the rules sim
+  (`firmware/main/pet.c`) and the hardware-math tests (`firmware/main/hw_math.h`).
+  Any new pure logic (no ESP headers) should get a host test there.
 - Commit `firmware/dependencies.lock`; never commit `firmware/sdkconfig`, `build/`, `managed_components/`.
 - Changing `sdkconfig.defaults` needs `rm firmware/sdkconfig && idf.py set-target esp32s3` to take effect.
 - One commit per phase or per meaningful step; the message says what was **verified on the device** vs only built.

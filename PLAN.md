@@ -286,23 +286,25 @@ cleaning resets the poop timer and poop is cosmetic for 2 h; sleep pauses needs 
 only recovers when every core stat > 50. Result: 3 visits/day → happy adult, 0 mistakes;
 2 visits/day → alive but grumpy; 1 visit/day → dead in ~2 days; never touched → dead in ~34 h.
 
-### Phase 4 — Time, sleep, battery
-- [ ] `rtc.c`: PCF85063 on `bsp_i2c_get_handle()`; read; oscillator-stop flag; set from build
+### Phase 4 — Time, sleep, battery  (code done 2026-09-19; battery-only paths still to verify)
+- [x] `rtc.c`: PCF85063A on `bsp_i2c_get_handle()`; read; oscillator-stop flag; set from build
       time when invalid; seed `settimeofday`; `TZ` = Singapore (`<+08>-8`)
-- [ ] Boot order: NVS → RTC → `pet_load` → `pet_apply(now)` (catch-up, capped 7 d) → UI
-- [ ] `battery.c`: present bit, %, mV, VBUS — shown in status strip; "no battery" state on USB
-- [ ] `power.c`:
-      - activity timer reset by touch / shake / button
-      - 30 s idle → brightness 20 %; 2 min → screen off
-      - on VBUS: **doze** (LVGL keeps running, `display_off`, wake on any input)
-      - on battery: persist → `display_off` → loop { `esp_light_sleep_start` 300 ms; poll BOOT,
-        touch, IMU delta, VBUS edge } → `esp_restart()`
-      - BOOT as GPIO low-level wake source; sample battery every ~5 min asleep into the journal
+- [x] Boot order: NVS → RTC → `pet_load` → `pet_apply(now)` (catch-up, capped 7 d) → UI, plus a
+      one-time re-anchor for pets carried over from Phase 3's uptime-based timestamps
+- [x] `battery.c`: present bit, %, mV, VBUS — clock + battery in the status strip; "USB" when no cell
+- [x] `power.c`: activity timer reset by touch / shake / button; 30 s → brightness 20 %;
+      2 min → screen off; on VBUS **doze** (CPU up, USB alive, wake on any input); on battery
+      persist → `esp_light_sleep_start` 300 ms slices, wake on BOOT + touch (GPIO21) + VBUS edge →
+      `esp_restart()`
+- [ ] `power.c` gaps: IMU-delta wake while asleep; battery samples into the journal every ~5 min
 - [ ] Settings page stub: set time (± buttons), brightness, reset pet
 - [ ] Soak: unplug at night, plug in in the morning: pet hungry, clock right, journal shows
       one sleep entry and a battery curve
 - **Done when:** the overnight test passes twice. Measure %/h dark; target < 5 %/h.
 - **Effort:** 1–2 days; the soak tests gate it.
+- **Verified on USB 2026-09-19:** clock seeds + retains while powered; pet re-anchors (age 0 h);
+  battery reads (`present=0` with no cell); `power: idle 30s: dim`; `idle 120s: dozing on USB`.
+  Wake-from-doze and the battery paths need the owner.
 
 ### Beyond (not planned in detail here)
 Phase 5: full sprite set + stages + evolution, mini-game, sound (hand-rolled ES8311),

@@ -10,9 +10,12 @@
 #include "nvs_flash.h"
 
 #include "app_imu.h"
+#include "battery.h"
 #include "game.h"
 #include "journal.h"
 #include "pet_ui.h"
+#include "power.h"
+#include "rtc.h"
 
 static const char *TAG = "tamagotchi";
 
@@ -39,7 +42,10 @@ void app_main(void)
     ESP_ERROR_CHECK(err);
 
     journal_init();
+    pcf85063_init();   // seed the system clock before the game reads time()
+    battery_init();
     pet_ui_start(game_act);
     game_start();
     ESP_ERROR_CHECK(app_imu_start(on_shake));
+    power_start();     // idle dim / screen off / doze or sleep
 }

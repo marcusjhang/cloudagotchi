@@ -1,39 +1,29 @@
 # Tasks
 
-**Status (2026-09-19):** Phase 3 is written, builds, passes the host sim, and is **verified on
-the device** (V2 board) — lifecycle, all actions, snack, shake, INFO, persistence. `FAST_FORWARD`
-is now wired into the build. Flashing works again. **Phase 3 is done.**
+**Status (2026-09-19):** Phase 3 done and device-verified. Phase 4 (time, battery, sleep) is
+written and builds; the clock, boot catch-up, battery readout, idle dim and USB doze are
+verified on the board. The **battery-only** paths (light sleep, overnight soaks) and the
+settings stub are still open — the owner has no battery attached, so the RTC also loses time
+on unplug (it only retains while powered).
 
 Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between sessions.
 
 ## Now
 
-- [x] **Flash Phase 3 and verify on the board** (2026-09-19), with the serial log open:
-  - [x] boots, `journal: boot #N`, `game: loaded: ...` (persistence) / `new egg`
-  - [x] egg hatches after 5 min → baby (`loaded: baby`), stat bars move over time
-  - [x] FEED / PLAY / LIGHT / CLEAN → `game: <action> -> ok`; MED → `medicine -> not sick`;
-        asleep blocks feeding (`meal -> zzz`, `snack -> zzz`)
-  - [x] long-press FEED = snack (`game: snack -> ok`)
-  - [x] INFO overlay opens/closes — visual check (button reads `INFO`, x≈307–361; it logs nothing)
-  - [x] shake → `app_imu: Shake detected!` + `game: shake -> ok`; no false shake at boot
-        (1.5 s warm-up in `app_imu.c`)
-  - [x] reset the board → same pet comes back (actions accumulate across boots)
-  - [x] touch parallax: action-bar taps land at y≈440–447 (buttons span y 380–436), still
-        inside the 20 px extended hit zone (`EXT_CLICK_PX`) — no adjustment needed
-- [x] Wire `FAST_FORWARD` into the build (`target_compile_definitions` in
-      `firmware/main/CMakeLists.txt` from a CMake cache var). Verified: default compiles with
-      `-DFAST_FORWARD=1`, `idf.py -DFAST_FORWARD=60 build` compiles with `=60`
-- [x] Commit "Phase 3: verified on device" saying what was actually seen; tick PLAN.md §7 Phase 3
+- [ ] Phase 4 device checks still open:
+  - [ ] **Wake from USB doze by touch** — tap after ~2 min idle, expect `power: screen on`
+  - [ ] **With a battery**: RTC keeps time across unplug; `power: on battery: sleeping`,
+        wake by touch / BOOT / plugging in
+  - [ ] **Overnight soak ×2** (unplug at night): pet hungry, clock right, journal shows the sleep
+  - [ ] Settings page stub: set time (± buttons), brightness, reset pet
 
-## Next — Phase 4: time, sleep, battery (needs the owner's go-ahead first)
+## Host tests (run before committing)
 
-- [ ] `rtc.c`: PCF85063 on `bsp_i2c_get_handle()`; set from build time when invalid; seed `settimeofday`; `TZ` Singapore
-- [ ] `game_now()` → real clock; catch-up on boot (capped 7 d) — the sim already covers the rules side
-- [ ] `battery.c`: AXP2101 present bit, %, mV, VBUS → status strip
-- [ ] `power.c`: 30 s idle → dim, 2 min → screen off; doze on USB, light-sleep slices on battery; wake via BOOT / touch / IMU / VBUS edge → `esp_restart()`
-- [ ] Overnight soak ×2; measure %/h dark
+- [x] `tools/check.sh` — rules sim (`tools/sim`) + hardware-math tests (`tools/tests/test_hw_math.c`)
+- [x] `firmware/main/hw_math.h` isolates the pure RTC/PMIC math so it compiles off-target
+- [x] sim covers the Phase 3 → Phase 4 timestamp migration (uptime → real epoch)
 
-## Later
+## Next
 
 - [ ] Phase 2 (deferred by the owner): own sprites — `tools/sprites/PROMPTS.md`, `prepare_sprites.py`, `to_lvgl.py`; replace `faces/`
 - [ ] Phase 5: stage/evolution art, mini-game, sound (hand-rolled ES8311, not the BSP helper), clock face
@@ -42,15 +32,17 @@ Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between
 
 ## Blocked / open questions
 
-- The "USB-serial hiccup" is understood now: attaching the serial monitor triggers a
-  `USB_UART_CHIP_RESET` (reset reason `usb`) — once on open and again ~60 s later while the
-  port is held. It is host-side, not firmware, and does not lose the pet (state is in NVS).
-  Leave the board untouched for slow timers (e.g. the 5 min hatch) to run to completion.
+- **No battery attached** → battery-only paths and the soaks can't be verified. The AXP2101
+  answers with no cell (reports `present=0`, bogus VBAT); the UI shows "USB" instead.
+- The "USB-serial hiccup" is host-side: attaching the monitor triggers `USB_UART_CHIP_RESET`,
+  and once the chip stops answering esptool the cable must be replugged. State is in NVS.
 - Repo is public; the owner said that's fine.
 
 ## Done
 
 - [x] Phase 0 — plan, fork `tagazok/cloudagotchi` → `marcusjhang/cloudagotchi`, branch `tamagotchi` (2026-09-18)
 - [x] Phase 1 — cloud stripped, ESP-IDF 5.5 build, flashed, V2 board confirmed, ghost face on screen (2026-09-18)
-- [x] Phase 3 code — rules + sim (neglect / good owner / lazy owner / one visit / edges, all green), game task, NVS, journal, new screen, IMU warm-up; builds, 1.5 MB (2026-09-18)
-- [x] Phase 3 device verification — flashed 2026-09-19, lifecycle + all actions + snack + shake + persistence confirmed over serial (INFO overlay pending)
+- [x] Phase 3 — rules + sim, game task, NVS, journal, screen, IMU warm-up; **device-verified 2026-09-19**
+- [x] Phase 4 code — `rtc.c` (PCF85063A + build-time seed + TZ), `battery.c` (AXP2101), real-clock
+      `game_now()` with boot catch-up, `power.c` (dim → screen off → doze/sleep). Verified on USB:
+      clock seeds, pet re-anchors, battery reads, `idle 30s: dim`, `idle 120s: dozing on USB` (2026-09-19)

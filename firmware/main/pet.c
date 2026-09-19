@@ -156,9 +156,25 @@ static void step(pet_t *p, int64_t now, int32_t dt)
 
 void pet_apply(pet_t *p, int64_t now)
 {
+    if (p->updated_at < CLOCK_VALID_EPOCH && now >= CLOCK_VALID_EPOCH) {
+        // Born before the RTC existed (Phase 3): its timestamps are uptime
+        // seconds near zero. Re-anchor the timeline to real time instead of
+        // charging it for the decades that would otherwise appear to pass.
+        const int64_t shift = now - p->updated_at;
+        p->born_at += shift;
+        p->updated_at += shift;
+        for (int s = 0; s < PET_STAT_COUNT; s++) {
+            if (p->critical_since[s] > 0) p->critical_since[s] += shift;
+        }
+        if (p->next_poop_at > 0)  p->next_poop_at += shift;
+        if (p->dirty_since > 0)   p->dirty_since += shift;
+        if (p->zero_health_since > 0) p->zero_health_since += shift;
+        if (p->died_at > 0)       p->died_at += shift;
+        if (p->transient_until > 0) p->transient_until += shift;
+    }
     if (now < p->updated_at) {
-        // Clock went backwards (Phase 3 has no RTC: every boot starts at 0).
-        // Resync without charging the pet for time that did not pass.
+        // Clock went backwards (RTC reset, or a build time in the past):
+        // resync without charging the pet for time that did not pass.
         p->updated_at = now;
         return;
     }

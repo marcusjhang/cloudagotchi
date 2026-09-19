@@ -12,3 +12,4 @@
 void    game_start(void);          // load from NVS or lay a new egg; start the tick task
 void    game_act(pet_action_t a);  // safe from any task; blocked actions show a toast
 int64_t game_now(void);            // game-time epoch seconds (see FAST_FORWARD)
+void    game_save_now(void);       // persist under the lock (call before sleeping)

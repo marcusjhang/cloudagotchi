@@ -16,6 +16,7 @@
 #define MAX_CATCHUP_S          (7 * 24 * 3600)  // a week away is "dead", further back changes nothing
 #define CLOCK_VALID_EPOCH      1577836800LL     // 2020-01-01: earlier means "clock not set" (Phase 4 adds the RTC)
 #define TZ_OFFSET_H            8           // Singapore
+#define TZ_POSIX               "<+08>-8"    // the same zone as a POSIX TZ string
 #define NIGHT_START_H          22          // pet will not auto-wake between these hours
 #define NIGHT_END_H            7
 
@@ -69,3 +70,7 @@
 /* ---- firmware --------------------------------------------------------- */
 #define TICK_MS                1000
 #define SAVE_INTERVAL_S        300         // plus a save on every action
+
+/* ---- power (seconds of idle) ------------------------------------------- */
+#define DIM_AFTER_S            30          // AMOLED burn-in: dim before the screen goes
+#define SCREEN_OFF_AFTER_S     120         // then black; on battery this leads into light sleep

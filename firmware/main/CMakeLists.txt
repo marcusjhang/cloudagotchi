@@ -7,6 +7,9 @@ idf_component_register(
         "game.c"
         "persist.c"
         "journal.c"
+        "rtc.c"
+        "battery.c"
+        "power.c"
         "pet_ui.c"
         "app_imu.c"
         ${FACE_SRCS}

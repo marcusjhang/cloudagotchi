@@ -15,12 +15,14 @@
 #include "pet_ui.h"
 
 #include <stdio.h>
+#include <time.h>
 
 #include "bsp/esp32_s3_touch_amoled_1_8.h"
 #include "esp_log.h"
 #include "lvgl.h"
 
 #include "faces/faces.h"
+#include "power.h"
 
 static const char *TAG = "pet_ui";
 
@@ -33,6 +35,7 @@ static const char *TAG = "pet_ui";
 static pet_ui_action_cb_t s_on_action;
 
 static lv_obj_t *s_status;
+static lv_obj_t *s_clock;
 static lv_obj_t *s_bars[PET_STAT_COUNT];
 static lv_obj_t *s_face;
 static lv_obj_t *s_poop;
@@ -169,6 +172,26 @@ static void render(const pet_ui_snapshot_t *s)
     snprintf(line, sizeof(line), "%s  ·  %s", pet_stage_name(s->stage), age);
     lv_label_set_text(s_status, line);
 
+    // clock + battery, top right. "USB" when there is no cell to report.
+    char clock[32] = "";
+    if (s->clock_ok) {
+        struct tm lt;
+        const time_t t = (time_t)s->clock_s;
+        localtime_r(&t, &lt);
+        char hm[8];
+        strftime(hm, sizeof(hm), "%H:%M", &lt);
+        if (s->batt_ok && s->batt.present) {
+            snprintf(clock, sizeof(clock), "%s  %d%%", hm, s->batt.percent);
+        } else if (s->batt_ok && s->batt.vbus) {
+            snprintf(clock, sizeof(clock), "%s  USB", hm);
+        } else {
+            snprintf(clock, sizeof(clock), "%s", hm);
+        }
+    } else if (s->batt_ok && s->batt.present) {
+        snprintf(clock, sizeof(clock), "%d%%", s->batt.percent);
+    }
+    lv_label_set_text(s_clock, clock);
+
     for (int i = 0; i < PET_STAT_COUNT; i++) {
         lv_bar_set_value(s_bars[i], s->stats[i], LV_ANIM_OFF);
     }
@@ -178,11 +201,22 @@ static void render(const pet_ui_snapshot_t *s)
     lv_label_set_text(s_caption, caption_for(s));
 
     if (!lv_obj_is_hidden(s_info)) {
-        char info[160];
+        char power[48] = "unknown";
+        if (s->batt_ok) {
+            if (s->batt.present) {
+                snprintf(power, sizeof(power), "%d%%  %d mV%s", s->batt.percent,
+                         s->batt.millivolts, s->batt.charging ? "  charging" : "");
+            } else {
+                snprintf(power, sizeof(power), "USB power, no battery");
+            }
+        }
+        char info[192];
         snprintf(info, sizeof(info),
-                 "stage      %s\nage        %s\nweight     %u\nmistakes   %u\nboots      %lu\n\n"
+                 "stage      %s\nage        %s\nweight     %u\nmistakes   %u\n"
+                 "power      %s\nboots      %lu\n\n"
                  "hold FEED for a snack\nhold the face when dead",
-                 pet_stage_name(s->stage), age, s->weight, s->mistakes, (unsigned long)s->boots);
+                 pet_stage_name(s->stage), age, s->weight, s->mistakes,
+                 power, (unsigned long)s->boots);
         lv_label_set_text(s_info_text, info);
     }
 }
@@ -214,6 +248,9 @@ static void touch_log_cb(lv_event_t *e)
     lv_indev_get_point(lv_indev_active(), &p);
     ESP_LOGI(TAG, "touch %s %d,%d", lv_event_get_code(e) == LV_EVENT_PRESSED ? "down" : "up  ",
              (int)p.x, (int)p.y);
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+        power_note_activity();  // any touch wakes the screen, not just buttons
+    }
 }
 
 static void action_cb(lv_event_t *e)
@@ -306,6 +343,14 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_set_style_text_color(s_status, lv_color_hex(0x8A9BB0), 0);
     lv_obj_set_pos(s_status, 16, 10);
     lv_label_set_text(s_status, "");
+
+    // status strip, right: clock and battery
+    s_clock = lv_label_create(scr);
+    lv_obj_set_style_text_font(s_clock, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(s_clock, lv_color_hex(0x8A9BB0), 0);
+    lv_obj_align(s_clock, LV_ALIGN_TOP_RIGHT, -16, 10);
+    lv_obj_set_style_text_align(s_clock, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(s_clock, "");
 
     // stat row: 5 columns of 64 px, 4 px gaps, centred
     for (int i = 0; i < PET_STAT_COUNT; i++) {

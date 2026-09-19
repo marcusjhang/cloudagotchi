@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battery.h"
 #include "pet.h"
 
 typedef struct {
@@ -19,6 +20,10 @@ typedef struct {
     uint8_t     weight;
     uint16_t    mistakes;
     uint32_t    boots;
+    int64_t     clock_s;                // wall clock; shown when clock_ok
+    bool        clock_ok;
+    bool        batt_ok;
+    battery_status_t batt;
 } pet_ui_snapshot_t;
 
 typedef void (*pet_ui_action_cb_t)(pet_action_t a);

@@ -190,6 +190,18 @@ static void scenario_edges(void)
     CHECK(pet_face(&p, T0 + EGG_HATCH_S + 8) == PET_FACE_STARTLED, "startled face after shake");
     CHECK(pet_face(&p, T0 + EGG_HATCH_S + 7 + TRANSIENT_S + 1) != PET_FACE_STARTLED, "transient expires");
 
+    // Phase 3 -> Phase 4 migration: a pet whose timestamps are uptime seconds
+    // (near zero) is re-anchored to the real clock, not charged decades.
+    pet_new(&p, 100);
+    const int mf = pet_stat(&p, PET_STAT_FULLNESS);
+    const int64_t poop_before = p.next_poop_at;
+    pet_apply(&p, T0);
+    CHECK(p.born_at == T0, "migration re-anchors born_at (got %lld)", (long long)p.born_at);
+    CHECK(p.updated_at == T0, "migration re-anchors updated_at");
+    CHECK(pet_stat(&p, PET_STAT_FULLNESS) == mf, "migration charges no decay");
+    CHECK(pet_age_s(&p, T0) == 0, "migration leaves age at 0");
+    CHECK(p.next_poop_at == poop_before + (T0 - 100), "migration shifts the poop timer");
+
     CHECK(sizeof(pet_t) < 256, "pet_t is %zu bytes; keep the NVS blob small", sizeof(pet_t));
 }
 
