@@ -254,7 +254,9 @@ sad, dirty, sick` × 2 = 15 images ≈ 1.2 MB.
 - [ ] → moved to Phase 3: IMU logs a false "Shake detected!" 80 ms after boot — add a 1 s warm-up
 
 ### Phase 2 — Your sprite  ⏸ deferred (2026-09-18: "use the placeholder for now")
-Phase 3 runs on cloudagotchi's placeholder faces; this phase slots in whenever art exists.
+Phase 3 runs on cloudagotchi's placeholder faces; this phase slots in whenever art exists —
+the tooling (`tools/sprites/`: PROMPTS.md, prepare_sprites.py, to_lvgl.py) is written and
+proven end to end, so the dog sheet is a two-command drop-in.
 State → placeholder mapping until then: idle/happy → `face_happy`, neutral → `face_neutral`,
 sad/sick/dirty → `face_sad`, asleep → `face_sleeping`, startled → `face_talk_3`.
 - [ ] `tools/sprites/PROMPTS.md`, `prepare_sprites.py`, `to_lvgl.py` (+ `requirements.txt`)
