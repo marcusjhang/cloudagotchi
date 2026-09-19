@@ -202,6 +202,21 @@ static void scenario_edges(void)
     CHECK(pet_age_s(&p, T0) == 0, "migration leaves age at 0");
     CHECK(p.next_poop_at == poop_before + (T0 - 100), "migration shifts the poop timer");
 
+    // pet_action_enabled mirrors the guards (the UI greys out blocked buttons)
+    pet_new(&p, T0);
+    CHECK(!pet_action_enabled(&p, PET_ACT_FEED_MEAL), "eggs cannot eat");
+    CHECK(pet_action_enabled(&p, PET_ACT_SHAKE), "eggs can be shaken");
+    pet_apply(&p, T0 + EGG_HATCH_S + 1);
+    CHECK(pet_action_enabled(&p, PET_ACT_FEED_MEAL), "a hungry baby can eat");
+    CHECK(!pet_action_enabled(&p, PET_ACT_MEDICINE), "a healthy pet needs no medicine");
+    pet_act(&p, PET_ACT_CLEAN, T0 + EGG_HATCH_S + 2);  // resets hygiene to full
+    CHECK(!pet_action_enabled(&p, PET_ACT_CLEAN), "a just-cleaned pet needs no clean");
+    pet_act(&p, PET_ACT_LIGHTS, T0 + EGG_HATCH_S + 3);
+    CHECK(!pet_action_enabled(&p, PET_ACT_PLAY), "an asleep pet cannot play");
+    CHECK(!pet_action_enabled(&p, PET_ACT_FEED_MEAL), "an asleep pet cannot eat");
+    p.dirty = 1;
+    CHECK(pet_action_enabled(&p, PET_ACT_CLEAN), "a dirty pet can be cleaned");
+
     CHECK(sizeof(pet_t) < 256, "pet_t is %zu bytes; keep the NVS blob small", sizeof(pet_t));
 }
 

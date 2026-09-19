@@ -264,6 +264,39 @@ pet_result_t pet_act(pet_t *p, pet_action_t a, int64_t now)
     return PET_OK;
 }
 
+// Mirrors the guards in pet_act() so the UI can grey out what would be blocked
+// (same thresholds, one source of truth). Pure: does not touch the pet.
+bool pet_action_enabled(const pet_t *p, pet_action_t a)
+{
+    if (a == PET_ACT_NEW_EGG) {
+        return p->stage == PET_STAGE_DEAD;
+    }
+    if (p->stage == PET_STAGE_DEAD) {
+        return false;
+    }
+    if (p->stage == PET_STAGE_EGG) {
+        return a == PET_ACT_SHAKE;
+    }
+    switch (a) {
+    case PET_ACT_FEED_MEAL:
+        return !p->asleep && pet_stat(p, PET_STAT_FULLNESS) <= FULL_ABOVE;
+    case PET_ACT_FEED_SNACK:
+        return !p->asleep;
+    case PET_ACT_PLAY:
+        return !p->asleep && pet_stat(p, PET_STAT_ENERGY) >= PLAY_NEEDS_ENERGY;
+    case PET_ACT_LIGHTS:
+        return true;
+    case PET_ACT_CLEAN:
+        return p->dirty || p->stats_u[PET_STAT_HYGIENE] < MAX_U;
+    case PET_ACT_MEDICINE:
+        return pet_stat(p, PET_STAT_HEALTH) < SICK_BELOW;
+    case PET_ACT_SHAKE:
+        return true;
+    default:
+        return false;
+    }
+}
+
 pet_face_t pet_face(const pet_t *p, int64_t now)
 {
     if (p->stage == PET_STAGE_DEAD) return PET_FACE_DEAD;

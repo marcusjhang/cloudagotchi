@@ -49,6 +49,9 @@ static void snapshot(pet_ui_snapshot_t *s, int64_t now)
     s->clock_s = (int64_t)time(NULL);
     s->clock_ok = s->clock_s >= CLOCK_VALID_EPOCH;
     s->batt_ok = battery_read(&s->batt);
+    for (int a = 0; a < PET_ACT_COUNT; a++) {
+        s->enabled[a] = pet_action_enabled(&s_pet, (pet_action_t)a);
+    }
 }
 
 // Never call pet_ui_* while holding s_lock: the LVGL task takes s_lock from

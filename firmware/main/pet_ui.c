@@ -25,6 +25,7 @@
 #include "game.h"
 #include "power.h"
 #include "rtc.h"
+#include "ui_theme.h"
 
 static const char *TAG = "pet_ui";
 
@@ -63,6 +64,49 @@ static const struct {
     [PET_STAT_HYGIENE]   = {"CLEAN", 0x5DA9E9},
     [PET_STAT_HEALTH]    = {"HP",    0xFF5A5F},
 };
+
+/* Action bar: 0..4 are pet actions, 5 is INFO. Icon (LV_SYMBOL_*) + caption. */
+static const struct {
+    const char *icon;
+    const char *text;
+    pet_action_t act;
+} BTN[6] = {
+    {LV_SYMBOL_PLUS,     "FEED",  PET_ACT_FEED_MEAL},
+    {LV_SYMBOL_PLAY,     "PLAY",  PET_ACT_PLAY},
+    {LV_SYMBOL_EYE_OPEN, "LIGHT", PET_ACT_LIGHTS},
+    {LV_SYMBOL_TRASH,    "CLEAN", PET_ACT_CLEAN},
+    {LV_SYMBOL_TINT,     "MED",   PET_ACT_MEDICINE},
+    {LV_SYMBOL_LIST,     "INFO",  PET_ACT_COUNT},  // count = not a pet action
+};
+
+static lv_obj_t *s_btn[6];
+static lv_obj_t *s_btn_icon[6];
+
+static lv_style_t st_btn_base, st_btn_pressed, st_btn_off, st_btn_on;
+
+static void btn_styles_init(void)
+{
+    lv_style_init(&st_btn_base);
+    lv_style_set_bg_color(&st_btn_base, UI_SURFACE);
+    lv_style_set_bg_opa(&st_btn_base, LV_OPA_COVER);
+    lv_style_set_radius(&st_btn_base, UI_RADIUS);
+    lv_style_set_border_width(&st_btn_base, 1);
+    lv_style_set_border_color(&st_btn_base, UI_BORDER);
+    lv_style_set_shadow_width(&st_btn_base, 0);
+    lv_style_set_pad_all(&st_btn_base, 2);
+
+    lv_style_init(&st_btn_pressed);
+    lv_style_set_bg_color(&st_btn_pressed, UI_SURFACE_PRESSED);
+    lv_style_set_translate_y(&st_btn_pressed, 1);
+
+    lv_style_init(&st_btn_off);
+    lv_style_set_bg_color(&st_btn_off, UI_SURFACE_OFF);
+    lv_style_set_opa(&st_btn_off, LV_OPA_50);
+
+    lv_style_init(&st_btn_on);  // checked: lit border (e.g. LIGHT while asleep)
+    lv_style_set_border_color(&st_btn_on, UI_ACCENT);
+    lv_style_set_bg_color(&st_btn_on, lv_color_mix(UI_ACCENT, UI_SURFACE, 40));
+}
 
 /* ---------- face selection ------------------------------------------------ */
 
@@ -211,6 +255,13 @@ static void render(const pet_ui_snapshot_t *s)
         snprintf(clock, sizeof(clock), "%d%%", s->batt.percent);
     }
     lv_label_set_text(s_clock, clock);
+
+    // Action bar: grey out what the pet would refuse; LIGHT lit while asleep.
+    for (int i = 0; i < 5; i++) {
+        lv_obj_set_state(s_btn[i], LV_STATE_DISABLED, !s->enabled[BTN[i].act]);
+    }
+    lv_label_set_text(s_btn_icon[2], s->asleep ? LV_SYMBOL_EYE_CLOSE : LV_SYMBOL_EYE_OPEN);
+    lv_obj_set_state(s_btn[2], LV_STATE_CHECKED, s->asleep);
 
     for (int i = 0; i < PET_STAT_COUNT; i++) {
         lv_bar_set_value(s_bars[i], s->stats[i], LV_ANIM_OFF);
@@ -361,28 +412,38 @@ static lv_obj_t *make_bar(lv_obj_t *parent, int i, int x)
     lv_obj_set_size(bar, 60, 10);
     lv_obj_set_pos(bar, x, 56);
     lv_bar_set_range(bar, 0, 100);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x1A2530), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(bar, UI_SURFACE, LV_PART_MAIN);
     lv_obj_set_style_bg_color(bar, lv_color_hex(STAT_STYLE[i].color), LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar, 5, LV_PART_MAIN);
     lv_obj_set_style_radius(bar, 5, LV_PART_INDICATOR);
     return bar;
 }
 
-static lv_obj_t *make_button(lv_obj_t *parent, int i, const char *text)
+static lv_obj_t *make_action_button(lv_obj_t *parent, int i)
 {
     lv_obj_t *btn = lv_button_create(parent);
-    lv_obj_set_size(btn, 54, 56);
+    lv_obj_set_size(btn, UI_BTN_W, UI_BTN_H);
     lv_obj_align(btn, LV_ALIGN_BOTTOM_LEFT, 7 + i * 60, -12);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A2530), 0);
-    lv_obj_set_style_radius(btn, 10, 0);
-    lv_obj_set_style_shadow_width(btn, 0, 0);
     lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
+    lv_obj_add_style(btn, &st_btn_base, 0);
+    lv_obj_add_style(btn, &st_btn_pressed, LV_STATE_PRESSED);
+    lv_obj_add_style(btn, &st_btn_off, LV_STATE_DISABLED);
+    lv_obj_add_style(btn, &st_btn_on, LV_STATE_CHECKED);
 
-    lv_obj_t *label = lv_label_create(btn);
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(0xE8EEF4), 0);
-    lv_obj_center(label);
+    lv_obj_t *icon = lv_label_create(btn);
+    lv_label_set_text(icon, BTN[i].icon);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(icon, UI_TEXT, 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 2);
+
+    lv_obj_t *text = lv_label_create(btn);
+    lv_label_set_text(text, BTN[i].text);
+    lv_obj_set_style_text_font(text, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(text, UI_TEXT_DIM, 0);
+    lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -2);
+
+    s_btn[i] = btn;
+    s_btn_icon[i] = icon;
     return btn;
 }
 
@@ -392,15 +453,14 @@ static lv_obj_t *make_sbtn(lv_obj_t *parent, const char *text, int x, int y, int
     lv_obj_t *btn = lv_button_create(parent);
     lv_obj_set_size(btn, w, 44);
     lv_obj_set_pos(btn, x, y);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A2530), 0);
-    lv_obj_set_style_radius(btn, 8, 0);
-    lv_obj_set_style_shadow_width(btn, 0, 0);
+    lv_obj_add_style(btn, &st_btn_base, 0);
+    lv_obj_add_style(btn, &st_btn_pressed, LV_STATE_PRESSED);
     lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
 
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_set_style_text_color(label, UI_TEXT, 0);
     lv_obj_center(label);
     return btn;
 }
@@ -414,23 +474,24 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     // blank white frame).
     bsp_display_start();
     bsp_display_lock(0);
+    btn_styles_init();
     bsp_display_brightness_set(100);  // a panel command on the pixel bus: under the lock
 
     lv_obj_t *scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);  // AMOLED: black = pixels off
+    lv_obj_set_style_bg_color(scr, UI_BG, 0);  // AMOLED: black = pixels off
     lv_obj_set_scrollable(scr, false);
 
     // status strip
     s_status = lv_label_create(scr);
     lv_obj_set_style_text_font(s_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_status, lv_color_hex(0x8A9BB0), 0);
+    lv_obj_set_style_text_color(s_status, UI_TEXT_DIM, 0);
     lv_obj_set_pos(s_status, 16, 10);
     lv_label_set_text(s_status, "");
 
     // status strip, right: clock and battery
     s_clock = lv_label_create(scr);
     lv_obj_set_style_text_font(s_clock, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_clock, lv_color_hex(0x8A9BB0), 0);
+    lv_obj_set_style_text_color(s_clock, UI_TEXT_DIM, 0);
     lv_obj_align(s_clock, LV_ALIGN_TOP_RIGHT, -16, 10);
     lv_obj_set_style_text_align(s_clock, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text(s_clock, "");
@@ -460,7 +521,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     // caption under the face
     s_caption = lv_label_create(scr);
     lv_obj_set_style_text_font(s_caption, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(s_caption, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_color(s_caption, UI_TEXT, 0);
     lv_obj_set_width(s_caption, 340);
     lv_obj_set_style_text_align(s_caption, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(s_caption, LV_ALIGN_CENTER, 0, 96);
@@ -469,19 +530,15 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     // toast for blocked actions
     s_toast = lv_label_create(scr);
     lv_obj_set_style_text_font(s_toast, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_toast, lv_color_hex(0xFFD166), 0);
+    lv_obj_set_style_text_color(s_toast, UI_WARN, 0);
     lv_obj_set_width(s_toast, 340);
     lv_obj_set_style_text_align(s_toast, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(s_toast, LV_ALIGN_BOTTOM_MID, 0, -80);
     lv_obj_set_hidden(s_toast, true);
 
-    // action bar
-    static const struct { const char *text; pet_action_t act; } BTN[] = {
-        {"FEED", PET_ACT_FEED_MEAL}, {"PLAY", PET_ACT_PLAY}, {"LIGHT", PET_ACT_LIGHTS},
-        {"CLEAN", PET_ACT_CLEAN},    {"MED", PET_ACT_MEDICINE},
-    };
+    // action bar (icons + captions; BTN table and styles are file scope)
     for (int i = 0; i < 5; i++) {
-        lv_obj_t *btn = make_button(scr, i, BTN[i].text);
+        lv_obj_t *btn = make_action_button(scr, i);
         if (BTN[i].act == PET_ACT_FEED_MEAL) {
             lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_SHORT_CLICKED, NULL);
             lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_LONG_PRESSED, NULL);
@@ -489,7 +546,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
             lv_obj_add_event_cb(btn, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)BTN[i].act);
         }
     }
-    lv_obj_t *info_btn = make_button(scr, 5, "INFO");
+    lv_obj_t *info_btn = make_action_button(scr, 5);
     lv_obj_add_event_cb(info_btn, info_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(info_btn, settings_open_cb, LV_EVENT_LONG_PRESSED, NULL);  // hold: settings
 
@@ -497,15 +554,15 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     s_info = lv_obj_create(scr);
     lv_obj_set_size(s_info, 300, 250);
     lv_obj_align(s_info, LV_ALIGN_CENTER, 0, -20);
-    lv_obj_set_style_bg_color(s_info, lv_color_hex(0x0B1420), 0);
-    lv_obj_set_style_border_color(s_info, lv_color_hex(0x2F9BFF), 0);
+    lv_obj_set_style_bg_color(s_info, UI_PANEL, 0);
+    lv_obj_set_style_border_color(s_info, UI_BORDER, 0);
     lv_obj_set_style_border_width(s_info, 1, 0);
     lv_obj_set_style_radius(s_info, 12, 0);
     lv_obj_set_scrollable(s_info, false);
     lv_obj_add_event_cb(s_info, info_cb, LV_EVENT_CLICKED, NULL);
     s_info_text = lv_label_create(s_info);
     lv_obj_set_style_text_font(s_info_text, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_info_text, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_set_style_text_color(s_info_text, UI_TEXT, 0);
     lv_obj_align(s_info_text, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_obj_set_hidden(s_info, true);
 
@@ -513,8 +570,8 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     s_settings = lv_obj_create(scr);
     lv_obj_set_size(s_settings, 330, 300);
     lv_obj_align(s_settings, LV_ALIGN_CENTER, 0, -20);
-    lv_obj_set_style_bg_color(s_settings, lv_color_hex(0x0B1420), 0);
-    lv_obj_set_style_border_color(s_settings, lv_color_hex(0x2F9BFF), 0);
+    lv_obj_set_style_bg_color(s_settings, UI_PANEL, 0);
+    lv_obj_set_style_border_color(s_settings, UI_BORDER, 0);
     lv_obj_set_style_border_width(s_settings, 1, 0);
     lv_obj_set_style_radius(s_settings, 12, 0);
     lv_obj_set_scrollable(s_settings, false);
@@ -522,17 +579,17 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_t *st_title = lv_label_create(s_settings);
     lv_label_set_text(st_title, "SETTINGS");
     lv_obj_set_style_text_font(st_title, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(st_title, lv_color_hex(0x8A9BB0), 0);
+    lv_obj_set_style_text_color(st_title, UI_TEXT_DIM, 0);
     lv_obj_set_pos(st_title, 16, 8);
 
     lv_obj_t *st_time = lv_label_create(s_settings);
     lv_label_set_text(st_time, "Time");
     lv_obj_set_style_text_font(st_time, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(st_time, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_set_style_text_color(st_time, UI_TEXT, 0);
     lv_obj_set_pos(st_time, 16, 50);
     s_settings_time = lv_label_create(s_settings);
     lv_obj_set_style_text_font(s_settings_time, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_settings_time, lv_color_hex(0x2EC4B6), 0);
+    lv_obj_set_style_text_color(s_settings_time, UI_ACCENT, 0);
     lv_obj_set_pos(s_settings_time, 16, 76);
     lv_obj_add_event_cb(make_sbtn(s_settings, "-1h", 176, 46, 66), settings_time_cb,
                         LV_EVENT_CLICKED, (void *)(intptr_t)-3600);
@@ -542,7 +599,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_t *st_br = lv_label_create(s_settings);
     lv_label_set_text(st_br, "Brightness");
     lv_obj_set_style_text_font(st_br, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(st_br, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_set_style_text_color(st_br, UI_TEXT, 0);
     lv_obj_set_pos(st_br, 16, 120);
     lv_obj_add_event_cb(make_sbtn(s_settings, "cycle", 190, 114, 124), settings_bright_cb,
                         LV_EVENT_CLICKED, NULL);
@@ -550,7 +607,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_t *st_reset = lv_label_create(s_settings);
     lv_label_set_text(st_reset, "Reset pet");
     lv_obj_set_style_text_font(st_reset, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(st_reset, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_set_style_text_color(st_reset, UI_TEXT, 0);
     lv_obj_set_pos(st_reset, 16, 186);
     lv_obj_add_event_cb(make_sbtn(s_settings, "hold", 190, 180, 124), settings_reset_cb,
                         LV_EVENT_LONG_PRESSED, NULL);

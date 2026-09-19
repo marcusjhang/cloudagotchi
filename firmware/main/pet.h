@@ -90,6 +90,9 @@ typedef struct {
 void         pet_new(pet_t *p, int64_t now);
 void         pet_apply(pet_t *p, int64_t now);                    // let time pass up to `now`
 pet_result_t pet_act(pet_t *p, pet_action_t a, int64_t now);      // apply first, then act
+
+// Would `pet_act` succeed right now? Pure; the UI greys out what it can't do.
+bool         pet_action_enabled(const pet_t *p, pet_action_t a);
 pet_face_t   pet_face(const pet_t *p, int64_t now);
 int          pet_stat(const pet_t *p, pet_stat_t s);              // 0..100
 int64_t      pet_age_s(const pet_t *p, int64_t now);
