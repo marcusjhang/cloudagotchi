@@ -30,6 +30,11 @@ gone and the pet's rules live in `firmware/main/pet.c`.
 | `firmware/main/faces/` | Placeholder sprites (RGB565A8 `lv_image_dsc_t`, from upstream). |
 | `tools/sim/`, `tools/tests/` | Host tests: game rules + hardware math. **`tools/check.sh` before you commit.** |
 
+**Structure diagram:** Excalidraw *"esp32-tamagotchi — Structure"* —
+https://app.excalidraw.com/s/919s34P0y0E/4WRHwsoGZ8m (workspace `919s34P0y0E`, scene
+`4WRHwsoGZ8m`). **Keep it current: any change to modules, tasks, boot order, or data flow
+updates this scene in the same step.**
+
 ## Commands
 
 ```bash
@@ -67,6 +72,16 @@ The touch log (`pet_ui: touch down x,y`) is permanent by design.
 - `tools/check.sh` must be green before you commit: it runs the rules sim
   (`firmware/main/pet.c`) and the hardware-math tests (`firmware/main/hw_math.h`).
   Any new pure logic (no ESP headers) should get a host test there.
+- **Code-review gate.** Clearing any feature or milestone requires an `ocr` review with
+  **all P1 (critical/high) findings fixed** before the commit. Use delegation mode so the
+  agent does the thinking:
+  ```bash
+  ocr delegate preview --format json [--from <base> --to HEAD]
+  ocr delegate rule --format json --background-file .ocr/background.md <path...>
+  ```
+  (`.ocr/background.md` holds this project's invariants and severity mapping.)
+  Fix P1s, re-run the loop, and repeat until **≤2 P1s** remain (report any survivors with
+  reasoning). Do not silently skip previewed files — coverage is mandatory.
 - Commit `firmware/dependencies.lock`; never commit `firmware/sdkconfig`, `build/`, `managed_components/`.
 - Changing `sdkconfig.defaults` needs `rm firmware/sdkconfig && idf.py set-target esp32s3` to take effect.
 - One commit per phase or per meaningful step; the message says what was **verified on the device** vs only built.

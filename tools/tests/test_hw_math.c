@@ -5,7 +5,9 @@
  *   tools/check.sh
  */
 #include <stdio.h>
+#include <string.h>
 
+#include "batt_ring.h"
 #include "hw_math.h"
 
 static int failures;
@@ -64,12 +66,36 @@ static void test_vbat(void)
           axp_vbat_mv(0xFF, 0xFF));
 }
 
+static void test_batt_ring(void)
+{
+    printf("[batt ring] append, wrap, oldest-first\n");
+    static batt_ring_t r;
+
+    memset(&r, 0, sizeof(r));
+    CHECK(r.n == 0, "starts empty");
+    batt_ring_append(&r, 10, 90, 4000);
+    batt_ring_append(&r, 20, 80, 3900);
+    CHECK(r.n == 2, "two samples counted");
+    CHECK(r.s[batt_ring_index(&r, 0)].pct == 90, "oldest first");
+    CHECK(r.s[batt_ring_index(&r, 1)].pct == 80, "newer second");
+
+    memset(&r, 0, sizeof(r));
+    for (int i = 0; i < BATT_RING + 3; i++) {
+        batt_ring_append(&r, i, i % 100, 3000 + i);
+    }
+    CHECK(r.n == BATT_RING, "count clamps at the ring size");
+    CHECK(r.head == 3, "head wraps modulo BATT_RING");
+    CHECK(r.s[batt_ring_index(&r, 0)].up_s == 3, "index(0) is the oldest retained");
+    CHECK(r.s[batt_ring_index(&r, BATT_RING - 1)].up_s == BATT_RING + 2, "last is newest");
+}
+
 int main(void)
 {
     printf("hw_math host tests\n\n");
     test_bcd();
     test_build_time();
     test_vbat();
+    test_batt_ring();
     printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "OK", failures,
            failures == 1 ? "" : "s");
     return failures ? 1 : 0;
