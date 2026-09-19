@@ -1,0 +1,4 @@
+# tools/sprites — regenerate with: python3 -m venv .venv && . .venv/bin/activate && pip install -r tools/sprites/requirements.txt
+Pillow>=10
+pypng>=0.20220715
+lz4>=4

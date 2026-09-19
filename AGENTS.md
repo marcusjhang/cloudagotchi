@@ -28,6 +28,7 @@ gone and the pet's rules live in `firmware/main/pet.c`.
 | `firmware/main/persist.c` `journal.c` | NVS blob for the pet; boot count + reset reason. |
 | `firmware/main/app_imu.c` | Shake detector (QMI8658, 50 Hz task). |
 | `firmware/main/faces/` | Placeholder sprites (RGB565A8 `lv_image_dsc_t`, from upstream). |
+| `tools/sprites/` | Sprite pipeline: `PROMPTS.md` (generation), `prepare_sprites.py` (raw → clean PNG), `to_lvgl.py` (PNG → `firmware/main/sprites/*.c` + `sprites.h`). Drop-in: raw PNGs in `tools/sprites/raw/`, run the two scripts; CMake globs `sprites/*.c`. |
 | `tools/sim/`, `tools/tests/` | Host tests: game rules + hardware math. **`tools/check.sh` before you commit.** |
 
 **Structure diagram:** Excalidraw *"esp32-tamagotchi — Structure"* —
