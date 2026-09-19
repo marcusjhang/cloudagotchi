@@ -13,7 +13,7 @@ Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between
 - [ ] Phase 4 device checks still open:
   - [ ] **Wake from USB doze by touch** — tap after ~2 min idle, expect `power: screen on`
   - [ ] **With a battery**: RTC keeps time across unplug; `power: on battery: sleeping`,
-        wake by touch / BOOT / plugging in
+        wake by touch / BOOT / movement / plugging in; `journal: battery sample` every 5 min asleep
   - [ ] **Overnight soak ×2** (unplug at night): pet hungry, clock right, journal shows the sleep
   - [ ] Settings "Reset pet" button (hold) — built, not yet exercised
   - [x] Settings page stub — long-press INFO: time ± and brightness cycle work; `rtc: clock adjusted`

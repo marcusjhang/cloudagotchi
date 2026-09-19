@@ -9,3 +9,7 @@
 
 void     journal_init(void);
 uint32_t journal_boots(void);
+
+// Append a battery sample to a small ring in NVS, so the overnight drain curve
+// survives a night with no serial attached. Sampled from the sleep loop.
+void journal_battery_sample(int percent, int millivolts);

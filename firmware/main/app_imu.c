@@ -19,9 +19,11 @@ static const char *TAG = "app_imu";
 #define SHAKE_JOLTS_NEEDED  3       // this many jolts...
 #define SHAKE_WINDOW_MS     800     // ...within this window = a shake
 #define SHAKE_COOLDOWN_MS   1500    // then ignore for a bit (debounce)
+#define WAKE_MOTION_MG      450.0f  // deviation from 1 g that means "picked up"
 
 static app_imu_shake_cb_t s_on_shake;
 static qmi8658_dev_t s_imu;
+static volatile bool s_moved;
 
 static void imu_task(void *arg)
 {
@@ -38,6 +40,11 @@ static void imu_task(void *arg)
 
             // 1. Total acceleration. At rest this is ~1000 mg (gravity).
             float mag = sqrtf(ax * ax + ay * ay + az * az);
+
+            // Coarse "was it handled" flag for power.c's light-sleep wake.
+            if (fabsf(mag - 1000.0f) > WAKE_MOTION_MG) {
+                s_moved = true;
+            }
 
             // 2. A jolt = a reading well above resting gravity.
             if (mag > SHAKE_THRESHOLD_MG && now > cooldown_until) {
@@ -61,6 +68,13 @@ static void imu_task(void *arg)
         }
         vTaskDelay(pdMS_TO_TICKS(20)); // 50 Hz is plenty for human hands
     }
+}
+
+bool app_imu_moved(void)
+{
+    const bool moved = s_moved;
+    s_moved = false;
+    return moved;
 }
 
 esp_err_t app_imu_start(app_imu_shake_cb_t on_shake)

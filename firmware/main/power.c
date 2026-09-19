@@ -10,8 +10,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "app_imu.h"
 #include "battery.h"
 #include "game.h"
+#include "journal.h"
 
 static const char *TAG = "power";
 
@@ -99,6 +101,7 @@ static void sleep_now(void)
     esp_sleep_enable_gpio_wakeup();
 
     bool was_vbus = false;
+    int64_t last_sample = 0;
     battery_status_t b;
     if (battery_read(&b)) {
         was_vbus = b.vbus;
@@ -124,6 +127,20 @@ static void sleep_now(void)
                 break;
             }
             was_vbus = b.vbus;
+        }
+        // Being picked up wakes it too; the IMU task samples between slices.
+        if (app_imu_moved()) {
+            ESP_LOGW(TAG, "woken by movement");
+            break;
+        }
+        // Most of a discharge happens asleep, so sample it there: the curve in
+        // the journal is about the part of the night nobody can watch.
+        if (last_sample == 0 ||
+            esp_timer_get_time() - last_sample >= (int64_t)BATT_SAMPLE_S * 1000000) {
+            last_sample = esp_timer_get_time();
+            if (battery_read(&b)) {
+                journal_battery_sample(b.percent, b.millivolts);
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(20));  // let the idle task breathe
     }

@@ -74,3 +74,4 @@
 /* ---- power (seconds of idle) ------------------------------------------- */
 #define DIM_AFTER_S            30          // AMOLED burn-in: dim before the screen goes
 #define SCREEN_OFF_AFTER_S     120         // then black; on battery this leads into light sleep
+#define BATT_SAMPLE_S          300         // while asleep, log a battery sample this often

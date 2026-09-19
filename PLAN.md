@@ -296,7 +296,8 @@ only recovers when every core stat > 50. Result: 3 visits/day → happy adult, 0
       2 min → screen off; on VBUS **doze** (CPU up, USB alive, wake on any input); on battery
       persist → `esp_light_sleep_start` 300 ms slices, wake on BOOT + touch (GPIO21) + VBUS edge →
       `esp_restart()`
-- [ ] `power.c` gaps: IMU-delta wake while asleep; battery samples into the journal every ~5 min
+- [x] Wake while asleep on being picked up (`app_imu_moved()`), and a battery sample into the NVS
+      journal ring every `BATT_SAMPLE_S` (300 s) so the overnight drain curve survives
 - [x] Settings page stub (long-press INFO): time ±1 h, brightness cycle, reset pet (hold). Time and
       brightness exercised on device; reset button not yet
 - [ ] Soak: unplug at night, plug in in the morning: pet hungry, clock right, journal shows

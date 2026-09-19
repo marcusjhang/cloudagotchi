@@ -2,10 +2,25 @@
 
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "nvs.h"
 
 static const char *TAG = "journal";
 static uint32_t s_boots;
+
+// Battery ring for the overnight soak. Small enough to rewrite cheaply every
+// few minutes; read back by tools/journal_dump.py.
+#define BATT_RING 24
+typedef struct {
+    int32_t up_s;   // uptime when sampled
+    int16_t pct;    // fuel gauge %
+    int16_t mv;     // VBAT
+} batt_sample_t;
+typedef struct {
+    uint16_t head;
+    uint16_t n;
+    batt_sample_t s[BATT_RING];
+} batt_ring_t;
 
 static const char *reason_name(esp_reset_reason_t r)
 {
@@ -43,4 +58,29 @@ void journal_init(void)
 uint32_t journal_boots(void)
 {
     return s_boots;
+}
+
+void journal_battery_sample(int percent, int millivolts)
+{
+    batt_ring_t r = {0};
+    nvs_handle_t h;
+    if (nvs_open("journal", NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    size_t len = sizeof(r);
+    if (nvs_get_blob(h, "batt", &r, &len) != ESP_OK) {
+        r.head = 0;
+        r.n = 0;
+    }
+    r.s[r.head].up_s = (int32_t)(esp_timer_get_time() / 1000000);
+    r.s[r.head].pct = (int16_t)percent;
+    r.s[r.head].mv = (int16_t)millivolts;
+    r.head = (uint16_t)((r.head + 1) % BATT_RING);
+    if (r.n < BATT_RING) {
+        r.n++;
+    }
+    nvs_set_blob(h, "batt", &r, sizeof(r));
+    nvs_commit(h);
+    nvs_close(h);
+    ESP_LOGI(TAG, "battery sample: %d%% %d mV", percent, millivolts);
 }
