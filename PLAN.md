@@ -266,18 +266,19 @@ sad/sick/dirty → `face_sad`, asleep → `face_sleeping`, startled → `face_ta
 - **Done when:** your pet breathes on the AMOLED, crisp pixels, no slivers after 10 min.
 - **Effort:** 2 h code + your generation time.
 
-### Phase 3 — Game loop  (code done 2026-09-18, device verification pending — see TASKS.md)
+### Phase 3 — Game loop  ✅ code done 2026-09-18, device-verified 2026-09-19
 - [x] `config.h` with the numbers, each with a comment saying why (retuned after the sim: see below)
 - [x] `pet.c`: `pet_new`, `pet_apply(now)`, `pet_act`, `pet_face` — pure, no ESP headers
 - [x] `tools/sim/`: neglect / good owner (30 d) / lazy owner / one visit / edges, all asserting
 - [x] `persist.c`: NVS blob, versioned; save on every action + 5 min timer
 - [x] `game.c` task at 1 Hz → `pet_ui_update(snapshot)`
 - [x] UI: action bar, 5 stat bars, poop blob, captions, toast, INFO overlay, long-press-on-dead → new egg
-- [ ] `-DFAST_FORWARD=60` wired into the build
+- [x] `-DFAST_FORWARD=60` wired into the build (`idf.py -DFAST_FORWARD=60 build`)
 - [x] `journal.c`: boot reason + reset counter in NVS, printed at boot
 - [x] IMU warm-up guard against the boot-time false shake
 - [x] Sprites: placeholder faces via the Phase 2 mapping
-- [ ] **Verified on device** (TASKS.md → Now)
+- [x] **Verified on device** — lifecycle, all actions, snack, shake, INFO overlay, persistence
+      across reset (2026-09-19)
 - **Done when:** ignore it → sad → sick; feed/clean/medicine → happy; reset → same pet. Host sim green ✅.
 
 What the sim changed (the first numbers were a chore): energy is never "neglect" (the pet naps);

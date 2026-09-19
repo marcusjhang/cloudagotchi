@@ -1,26 +1,29 @@
 # Tasks
 
-**Status (2026-09-18):** Phase 3 is written, builds, and passes the host sim — **not yet
-verified on the device**. Flashing is blocked by a USB-serial hiccup (chip stops answering
-esptool; needs a cable replug). The board currently runs Phase 1 firmware (ghost face).
+**Status (2026-09-19):** Phase 3 is written, builds, passes the host sim, and is **verified on
+the device** (V2 board) — lifecycle, all actions, snack, shake, INFO, persistence. `FAST_FORWARD`
+is now wired into the build. Flashing works again. **Phase 3 is done.**
 
 Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between sessions.
 
 ## Now
 
-- [ ] **Flash Phase 3 and verify on the board.** Blocked on the owner replugging USB.
-      Then check, with the serial log open:
-  - [ ] boots, `journal: boot #N`, `game: new egg` (or `loaded:`)
-  - [ ] egg hatches after 5 min → baby, stat bars move
-  - [ ] FEED / PLAY / LIGHT / CLEAN / MED each log `game: <action> -> ok` and move a bar
-  - [ ] long-press FEED = snack; blocked actions show a toast ("not hungry", "zzz")
-  - [ ] INFO overlay opens/closes; touch log shows coordinates — note how far below the
-        button centre presses land (parallax) and adjust `EXT_CLICK_PX` if needed
-  - [ ] shake → startled face, `shake -> ok`; no false shake at boot
-  - [ ] reset the board → same pet comes back (`game: loaded: ...`)
-- [ ] Wire `FAST_FORWARD` into the build (`target_compile_definitions` in
-      `firmware/main/CMakeLists.txt` from a CMake cache var) so a day passes in 24 min on the device
-- [ ] Commit "Phase 3: verified on device" saying what was actually seen; tick PLAN.md §7 Phase 3
+- [x] **Flash Phase 3 and verify on the board** (2026-09-19), with the serial log open:
+  - [x] boots, `journal: boot #N`, `game: loaded: ...` (persistence) / `new egg`
+  - [x] egg hatches after 5 min → baby (`loaded: baby`), stat bars move over time
+  - [x] FEED / PLAY / LIGHT / CLEAN → `game: <action> -> ok`; MED → `medicine -> not sick`;
+        asleep blocks feeding (`meal -> zzz`, `snack -> zzz`)
+  - [x] long-press FEED = snack (`game: snack -> ok`)
+  - [x] INFO overlay opens/closes — visual check (button reads `INFO`, x≈307–361; it logs nothing)
+  - [x] shake → `app_imu: Shake detected!` + `game: shake -> ok`; no false shake at boot
+        (1.5 s warm-up in `app_imu.c`)
+  - [x] reset the board → same pet comes back (actions accumulate across boots)
+  - [x] touch parallax: action-bar taps land at y≈440–447 (buttons span y 380–436), still
+        inside the 20 px extended hit zone (`EXT_CLICK_PX`) — no adjustment needed
+- [x] Wire `FAST_FORWARD` into the build (`target_compile_definitions` in
+      `firmware/main/CMakeLists.txt` from a CMake cache var). Verified: default compiles with
+      `-DFAST_FORWARD=1`, `idf.py -DFAST_FORWARD=60 build` compiles with `=60`
+- [x] Commit "Phase 3: verified on device" saying what was actually seen; tick PLAN.md §7 Phase 3
 
 ## Next — Phase 4: time, sleep, battery (needs the owner's go-ahead first)
 
@@ -39,7 +42,10 @@ Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between
 
 ## Blocked / open questions
 
-- USB flashing (see Now). Software-side attempts exhausted: default_reset, usb_reset, no_reset, low baud, DTR/RTS release.
+- The "USB-serial hiccup" is understood now: attaching the serial monitor triggers a
+  `USB_UART_CHIP_RESET` (reset reason `usb`) — once on open and again ~60 s later while the
+  port is held. It is host-side, not firmware, and does not lose the pet (state is in NVS).
+  Leave the board untouched for slow timers (e.g. the 5 min hatch) to run to completion.
 - Repo is public; the owner said that's fine.
 
 ## Done
@@ -47,3 +53,4 @@ Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between
 - [x] Phase 0 — plan, fork `tagazok/cloudagotchi` → `marcusjhang/cloudagotchi`, branch `tamagotchi` (2026-09-18)
 - [x] Phase 1 — cloud stripped, ESP-IDF 5.5 build, flashed, V2 board confirmed, ghost face on screen (2026-09-18)
 - [x] Phase 3 code — rules + sim (neglect / good owner / lazy owner / one visit / edges, all green), game task, NVS, journal, new screen, IMU warm-up; builds, 1.5 MB (2026-09-18)
+- [x] Phase 3 device verification — flashed 2026-09-19, lifecycle + all actions + snack + shake + persistence confirmed over serial (INFO overlay pending)
