@@ -25,6 +25,7 @@ static const gpio_num_t TOUCH_INT = (gpio_num_t)BSP_LCD_TOUCH_INT;  // GPIO21
 static int64_t s_last_activity;
 static bool s_dimmed;
 static bool s_screen_off;
+static int s_awake_pct = 100;  // what screen_on() restores; see power_set_awake_brightness
 
 static void screen_brightness(int pct)
 {
@@ -38,10 +39,20 @@ static void screen_on(void)
     if (!s_dimmed && !s_screen_off) {
         return;
     }
-    screen_brightness(100);
+    screen_brightness(s_awake_pct);
     s_dimmed = false;
     s_screen_off = false;
     ESP_LOGI(TAG, "screen on");
+}
+
+void power_set_awake_brightness(int pct)
+{
+    if (pct < 10)  pct = 10;
+    if (pct > 100) pct = 100;
+    s_awake_pct = pct;
+    if (!s_screen_off) {
+        screen_brightness(pct);
+    }
 }
 
 static void screen_off(void)

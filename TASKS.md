@@ -15,7 +15,9 @@ Phases live in `PLAN.md §7`. Keep this file current; it is the hand-off between
   - [ ] **With a battery**: RTC keeps time across unplug; `power: on battery: sleeping`,
         wake by touch / BOOT / plugging in
   - [ ] **Overnight soak ×2** (unplug at night): pet hungry, clock right, journal shows the sleep
-  - [ ] Settings page stub: set time (± buttons), brightness, reset pet
+  - [ ] Settings "Reset pet" button (hold) — built, not yet exercised
+  - [x] Settings page stub — long-press INFO: time ± and brightness cycle work; `rtc: clock adjusted`
+        confirmed on device (2026-09-19)
 
 ## Host tests (run before committing)
 

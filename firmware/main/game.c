@@ -83,6 +83,22 @@ void game_save_now(void)
     xSemaphoreGive(s_lock);
 }
 
+void game_reset(void)
+{
+    power_note_activity();
+    pet_ui_snapshot_t s;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const int64_t now = game_now();
+    pet_new(&s_pet, now);
+    persist_save(&s_pet);
+    s_last_save = now;
+    snapshot(&s, now);
+    xSemaphoreGive(s_lock);
+
+    pet_ui_update(&s);
+    ESP_LOGW(TAG, "reset: new egg");
+}
+
 static void game_task(void *arg)
 {
     (void)arg;

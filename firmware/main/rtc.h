@@ -18,3 +18,7 @@ void pcf85063_init(void);
 int64_t pcf85063_now(void);
 
 bool pcf85063_ok(void);
+
+// Shift the system clock (and the RTC) by delta seconds. No-op if the RTC is
+// not up or the result would be before the clock-valid epoch.
+void pcf85063_adjust(int64_t delta_s);

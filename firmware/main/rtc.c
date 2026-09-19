@@ -118,3 +118,26 @@ bool pcf85063_ok(void)
 {
     return s_ok;
 }
+
+void pcf85063_adjust(int64_t delta_s)
+{
+    if (!s_ok) {
+        return;
+    }
+    const time_t now = time(NULL) + delta_s;
+    if (now < CLOCK_VALID_EPOCH) {
+        return;  // refuse to set a clock we would then call invalid
+    }
+    const struct timeval tv = {.tv_sec = now};
+    settimeofday(&tv, NULL);
+
+    struct tm lt;
+    localtime_r(&now, &lt);
+    const hm_civil_t t = {
+        .year = lt.tm_year + 1900, .mon = lt.tm_mon + 1, .day = lt.tm_mday,
+        .hour = lt.tm_hour, .min = lt.tm_min, .sec = lt.tm_sec,
+    };
+    write_time(&t);
+    ESP_LOGI(TAG, "clock adjusted %+lld s -> %04d-%02d-%02d %02d:%02d",
+             (long long)delta_s, t.year, t.mon, t.day, t.hour, t.min);
+}

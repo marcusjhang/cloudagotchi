@@ -297,7 +297,8 @@ only recovers when every core stat > 50. Result: 3 visits/day → happy adult, 0
       persist → `esp_light_sleep_start` 300 ms slices, wake on BOOT + touch (GPIO21) + VBUS edge →
       `esp_restart()`
 - [ ] `power.c` gaps: IMU-delta wake while asleep; battery samples into the journal every ~5 min
-- [ ] Settings page stub: set time (± buttons), brightness, reset pet
+- [x] Settings page stub (long-press INFO): time ±1 h, brightness cycle, reset pet (hold). Time and
+      brightness exercised on device; reset button not yet
 - [ ] Soak: unplug at night, plug in in the morning: pet hungry, clock right, journal shows
       one sleep entry and a battery curve
 - **Done when:** the overnight test passes twice. Measure %/h dark; target < 5 %/h.

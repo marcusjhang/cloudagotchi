@@ -11,3 +11,6 @@
 void power_start(void);          // starts the idle/sleep task; call once
 void power_note_activity(void);  // touch, button or shake: reset the idle timer
 bool power_dozing(void);         // true while the screen is off on USB power
+
+// The brightness the screen wakes to (10..100). Idle dimming still applies.
+void power_set_awake_brightness(int pct);
