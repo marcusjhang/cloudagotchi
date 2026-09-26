@@ -49,8 +49,8 @@ static const char *TAG = "pet_ui";
 
 #define REPAINT_MS       15000
 #define PULSE_MS         700
-#define CHEW_MS          140               // mouth open/closed cadence while eating
-#define CHEW_STEPS       10
+#define ANIM_MS          100               // animation clock
+#define EAT_TICKS        16                // ~1.6 s of eating/drinking per item
 
 static pet_ui_action_cb_t s_on_action;
 
@@ -59,7 +59,6 @@ static lv_obj_t *s_poop;
 static lv_obj_t *s_chat;
 static lv_obj_t *s_chat_icon;
 static lv_obj_t *s_item;
-static lv_timer_t *s_chew_timer;
 static lv_obj_t *s_btn[3];
 static lv_obj_t *s_settings;
 static lv_obj_t *s_settings_time;
@@ -71,9 +70,9 @@ static bool s_chat_on;
 
 typedef enum { GIVE_NONE, GIVE_FOOD, GIVE_WATER } give_t;
 static give_t s_give;
-static bool s_chewing;
-static bool s_chew_open;
-static int s_chew_left;
+static bool s_eating;
+static int s_eat_ticks;
+static uint32_t s_anim_tick;
 
 static const pet_action_t BTN_ACT[3] = {PET_ACT_FEED_MEAL, PET_ACT_DRINK, PET_ACT_LIGHTS};
 static const lv_image_dsc_t *BTN_ICON[3] = {&ic_feed, &ic_water, &ic_sleep};
@@ -98,16 +97,21 @@ static void btn_styles_init(void)
 
 /* ---------- rabbit frames -------------------------------------------------- */
 
-static const lv_image_dsc_t *frame_for(const pet_ui_snapshot_t *s)
-{
-    if (s->stage == PET_STAGE_EGG) return &rabbit_egg;
-    if (s->asleep)                 return &rabbit_sleep;
-    if (s_chewing) {
-        const lv_image_dsc_t *open = (s_give == GIVE_WATER) ? &rabbit_drink : &rabbit_eat;
-        return s_chew_open ? open : &rabbit_idle;  // alternate to read as chewing
-    }
-    return &rabbit_idle;
-}
+// Frame sequences (see tools/sprites/make_icons.py). Idle blinks and breathes;
+// eat/drink run a chew cycle; sleep breathes slowly.
+static const lv_image_dsc_t *IDLE_SEQ[] = {
+    &rabbit_idle_0, &rabbit_idle_1, &rabbit_idle_2, &rabbit_idle_3,
+    &rabbit_idle_4, &rabbit_idle_5, &rabbit_idle_6, &rabbit_idle_7,
+};
+static const lv_image_dsc_t *EAT_SEQ[] = {
+    &rabbit_eat_0, &rabbit_eat_1, &rabbit_eat_2, &rabbit_eat_3,
+};
+static const lv_image_dsc_t *DRINK_SEQ[] = {
+    &rabbit_drink_0, &rabbit_drink_1, &rabbit_drink_2, &rabbit_drink_3,
+};
+static const lv_image_dsc_t *SLEEP_SEQ[] = {&rabbit_sleep_0, &rabbit_sleep_1};
+
+#define NSEQ(a) (int)(sizeof(a) / sizeof((a)[0]))
 
 static void show_frame(const lv_image_dsc_t *src)
 {
@@ -115,6 +119,29 @@ static void show_frame(const lv_image_dsc_t *src)
     s_shown = src;
     lv_image_set_src(s_pet, src);
     lv_obj_invalidate(s_pet);
+}
+
+// One animation clock drives every state; the divisor sets each frame rate.
+static void anim_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (!s_have_snap) return;
+    const pet_ui_snapshot_t *s = &s_snap;
+    const lv_image_dsc_t *f;
+
+    if (s->stage == PET_STAGE_EGG) {
+        f = &rabbit_egg;
+    } else if (s_eating) {
+        const lv_image_dsc_t **seq = (s_give == GIVE_WATER) ? DRINK_SEQ : EAT_SEQ;
+        f = seq[s_anim_tick % NSEQ(EAT_SEQ)];
+        if (--s_eat_ticks <= 0) s_eating = false;
+    } else if (s->asleep) {
+        f = SLEEP_SEQ[(s_anim_tick / 8) % NSEQ(SLEEP_SEQ)];   // slow breathing
+    } else {
+        f = IDLE_SEQ[(s_anim_tick / 3) % NSEQ(IDLE_SEQ)];     // blink every ~2.4 s
+    }
+    show_frame(f);
+    s_anim_tick++;
 }
 
 /* ---------- the chatbox ---------------------------------------------------- */
@@ -143,27 +170,13 @@ static void item_done_cb(lv_anim_t *a)
     lv_obj_set_hidden(s_item, true);
 }
 
-static void chew_cb(lv_timer_t *t)
-{
-    if (s_chew_left <= 0) {
-        s_chewing = false;
-        lv_timer_delete(t);
-        s_chew_timer = NULL;
-        if (s_have_snap) show_frame(frame_for(&s_snap));
-        return;
-    }
-    s_chew_open = !s_chew_open;
-    s_chew_left--;
-    if (s_have_snap) show_frame(frame_for(&s_snap));
-}
-
 // The item appears in front of the pet and it chews/drinks until it is gone.
+// The anim timer plays the eat/drink frames for EAT_TICKS.
 static void start_eating(give_t g)
 {
     s_give = g;
-    s_chewing = true;
-    s_chew_open = true;
-    s_chew_left = CHEW_STEPS;
+    s_eating = true;
+    s_eat_ticks = EAT_TICKS;
 
     lv_image_set_src(s_item, g == GIVE_WATER ? &ic_water : &ic_feed);
     lv_obj_set_pos(s_item, ITEM_X, ITEM_Y);
@@ -182,14 +195,10 @@ static void start_eating(give_t g)
     lv_anim_set_var(&eaten, s_item);
     lv_anim_set_exec_cb(&eaten, item_scale_cb);
     lv_anim_set_values(&eaten, 256, 0);
-    lv_anim_set_time(&eaten, 700);
-    lv_anim_set_delay(&eaten, 400);
+    lv_anim_set_time(&eaten, 850);
+    lv_anim_set_delay(&eaten, 350);
     lv_anim_set_ready_cb(&eaten, item_done_cb);
     lv_anim_start(&eaten);
-
-    if (s_chew_timer) lv_timer_reset(s_chew_timer);
-    else s_chew_timer = lv_timer_create(chew_cb, CHEW_MS, NULL);
-    if (s_have_snap) show_frame(frame_for(&s_snap));
 }
 
 // Give the pet what it is asking for.
@@ -254,8 +263,7 @@ static void render(const pet_ui_snapshot_t *s)
         lv_obj_set_state(s_btn[i], LV_STATE_DISABLED, !s->enabled[BTN_ACT[i]]);
     }
 
-    show_frame(frame_for(s));
-    lv_obj_set_hidden(s_poop, !s->dirty);
+    lv_obj_set_hidden(s_poop, !s->dirty);  // the frame itself is driven by anim_cb
 
     if (!lv_obj_is_hidden(s_settings) && lv_obj_is_valid(s_settings_time)) {
         char hm[8] = "--:--";
@@ -376,7 +384,7 @@ static void build_pet(lv_obj_t *scr)
     lv_obj_set_ext_click_area(s_pet, EXT_CLICK_PX);
     lv_obj_add_event_cb(s_pet, pet_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(s_pet, pet_cb, LV_EVENT_LONG_PRESSED, NULL);
-    show_frame(&rabbit_idle);
+    show_frame(&rabbit_idle_0);
 
     s_poop = lv_obj_create(scr);
     lv_obj_set_size(s_poop, 24, 18);
@@ -493,6 +501,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     build_settings(scr);
     register_touch_log();
 
+    lv_timer_create(anim_cb, ANIM_MS, NULL);
     lv_timer_create(pulse_cb, PULSE_MS, NULL);
     lv_timer_create(repaint_cb, REPAINT_MS, NULL);
 

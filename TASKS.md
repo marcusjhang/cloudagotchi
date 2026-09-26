@@ -63,9 +63,10 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
       pets' "no HUD until asked"): pet as the hero, Food/Fun **hearts**, one pulsing **call**
       (pure `pet_need()`), **4 candy icon tiles**, settings behind a long-press. Removed the
       5-bar row, the 6-button bar, and the captions. `lvgl-ui` gains `references/screens.md`.
-- [x] **Monochrome rabbit UI.** A generated cute rabbit (`rabbit_idle/eat/drink/sleep/egg`),
-      a subtle **chatbox** with the need icon, and giving **food/water makes the item appear
-      and the rabbit chews/drinks it** (multi-frame chew, item shrinks until gone) — no
-      instant stat bump. **Sleep** (lights) closes its eyes. Three round buttons (food /
-      water / sleep); clean & medicine via the chatbox. Model gained **thirst** (water) and a
-      **sleep** need; `PET_SCHEMA_VERSION` 3. All art via `tools/sprites/make_icons.py`.
+- [x] **Monochrome rabbit UI, frame-animated.** Generated rabbit sprite frames:
+      8-frame **idle** (blink + breathing bob), 4-frame **chew** and **drink**, 2-frame
+      **sleep** breathing, plus **egg**. A 100 ms animation clock drives them. A subtle
+      **chatbox** shows the need icon; giving **food/water makes the item appear and the
+      rabbit chews/drinks it** (item shrinks until gone) — no instant stat bump. **Sleep**
+      closes its eyes. Three round buttons (food / water / sleep); clean & medicine via the
+      chatbox. Model gained **thirst** and a **sleep** need; `PET_SCHEMA_VERSION` 3.

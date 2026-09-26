@@ -23,11 +23,14 @@ Behaviour that makes it feel alive, not like a form:
 - **A chatbox, not a wall of meters.** When a need is low, a small rounded bubble
   shows just the icon for it (food / water / sleep / clean / med). It is subtle on
   purpose — the pet should not scream at you. Tapping the bubble gives the item.
-- **It actually eats / drinks.** Pressing Food/Water makes the item **appear in
-  front of the pet** (scale-in), and the pet **chews** it — a timer alternates its
-  open-mouth and closed-mouth frames (~140 ms) while the item **shrinks away as it
-  is consumed**. No instant stat bump, and no "item falls and vanishes" shortcut:
-  the consumption is animated until the item is gone.
+- **It actually eats / drinks, frame by frame.** Pressing Food/Water makes the item
+  **appear in front of the pet** (scale-in) and the pet plays a real **4-frame chew /
+  drink cycle** (~1.6 s) while the item **shrinks away as it is consumed**. No instant
+  stat bump and no "item falls and vanishes" shortcut.
+- **Two more frame sets keep it alive.** An **8-frame idle** (a blink and a breathing
+  bob) and a **2-frame sleep** (slow breathing) run off one 100 ms animation clock; the
+  divisor per state sets its frame rate (`idle /3`, `sleep /8`, chew every tick). This is
+  what makes a sprite feel hand-animated rather than swapped between two poses.
 - **Sleep visibly happens.** The sleep button toggles the lights; the rabbit's eyes
   close and it naps. No text explains it.
 - **Three controls only.** Food, Water, Sleep. Everything else (clean, medicine) is

@@ -90,29 +90,37 @@ def draw_sleep(size):
     return img
 
 
-def draw_rabbit(size, eyes="open", mouth="line"):
+def draw_rabbit(size, eye="open", mouth="closed", dy=0):
+    """eye: open | half | closed;  mouth: closed | half | open;  dy: idle bob (0/1)."""
     img, d, n = _new(size)
+    oy = n * 0.02 * dy  # a subtle breathing bob
     # ears + inner ear
-    d.rounded_rectangle([n * 0.28, n * 0.05, n * 0.43, n * 0.46], radius=n * 0.075, fill=WHITE)
-    d.rounded_rectangle([n * 0.57, n * 0.05, n * 0.72, n * 0.46], radius=n * 0.075, fill=WHITE)
-    d.rounded_rectangle([n * 0.315, n * 0.11, n * 0.395, n * 0.40], radius=n * 0.04, fill=CLEAR)
-    d.rounded_rectangle([n * 0.605, n * 0.11, n * 0.685, n * 0.40], radius=n * 0.04, fill=CLEAR)
+    d.rounded_rectangle([n * 0.28, oy + n * 0.05, n * 0.43, oy + n * 0.46], radius=n * 0.075, fill=WHITE)
+    d.rounded_rectangle([n * 0.57, oy + n * 0.05, n * 0.72, oy + n * 0.46], radius=n * 0.075, fill=WHITE)
+    d.rounded_rectangle([n * 0.315, oy + n * 0.11, n * 0.395, oy + n * 0.40], radius=n * 0.04, fill=CLEAR)
+    d.rounded_rectangle([n * 0.605, oy + n * 0.11, n * 0.685, oy + n * 0.40], radius=n * 0.04, fill=CLEAR)
     # head
-    d.ellipse([n * 0.18, n * 0.34, n * 0.82, n * 0.94], fill=WHITE)
-    # eyes
+    d.ellipse([n * 0.18, oy + n * 0.34, n * 0.82, oy + n * 0.94], fill=WHITE)
+
+    # eyes (a hole in the white head; the eyelid is white painted back over it)
     r = n * 0.05
-    if eyes == "closed":
-        d.rounded_rectangle([n * 0.40 - r, n * 0.61, n * 0.40 + r, n * 0.635], radius=n * 0.015, fill=CLEAR)
-        d.rounded_rectangle([n * 0.60 - r, n * 0.61, n * 0.60 + r, n * 0.635], radius=n * 0.015, fill=CLEAR)
-    else:
-        d.ellipse([n * 0.40 - r, n * 0.62 - r, n * 0.40 + r, n * 0.62 + r], fill=CLEAR)
-        d.ellipse([n * 0.60 - r, n * 0.62 - r, n * 0.60 + r, n * 0.62 + r], fill=CLEAR)
+    for cx in (0.40, 0.60):
+        x, y = n * cx, oy + n * 0.62
+        if eye == "closed":
+            d.rounded_rectangle([x - r, y - n * 0.012, x + r, y + n * 0.012], radius=n * 0.012, fill=CLEAR)
+        else:
+            d.ellipse([x - r, y - r, x + r, y + r], fill=CLEAR)
+            if eye == "half":
+                d.rectangle([x - r, y - r, x + r, y], fill=WHITE)  # eyelid coming down
+
     # nose + mouth
-    d.polygon([(n * 0.47, n * 0.70), (n * 0.53, n * 0.70), (n * 0.50, n * 0.745)], fill=CLEAR)
+    d.polygon([(n * 0.47, oy + n * 0.70), (n * 0.53, oy + n * 0.70), (n * 0.50, oy + n * 0.745)], fill=CLEAR)
     if mouth == "open":
-        d.ellipse([n * 0.45, n * 0.755, n * 0.55, n * 0.83], fill=CLEAR)
-    elif mouth == "line":
-        d.rounded_rectangle([n * 0.47, n * 0.775, n * 0.53, n * 0.795], radius=n * 0.01, fill=CLEAR)
+        d.ellipse([n * 0.44, oy + n * 0.74, n * 0.56, oy + n * 0.85], fill=CLEAR)
+    elif mouth == "half":
+        d.ellipse([n * 0.46, oy + n * 0.75, n * 0.54, oy + n * 0.81], fill=CLEAR)
+    else:  # closed
+        d.rounded_rectangle([n * 0.47, oy + n * 0.775, n * 0.53, oy + n * 0.795], radius=n * 0.01, fill=CLEAR)
     return img
 
 
@@ -141,11 +149,21 @@ def main():
     save(draw_sparkle(48), "ic_clean", 48)   # clean (sparkle)
     save(draw_med(48), "ic_med", 48)         # medicine (cross)
     save(draw_play(48), "ic_play", 48)       # fun (ball)
-    # the pet itself (monochrome rabbit)
-    save(draw_rabbit(220), "rabbit_idle", 220)
-    save(draw_rabbit(220, mouth="open"), "rabbit_eat", 220)
-    save(draw_rabbit(220, mouth="open"), "rabbit_drink", 220)
-    save(draw_rabbit(220, eyes="closed"), "rabbit_sleep", 220)
+    # the pet itself (monochrome rabbit), as animation frames
+    idle = [("open", "closed", 0), ("open", "closed", 0), ("open", "closed", 0),
+            ("open", "closed", 1), ("half", "closed", 0), ("closed", "closed", 0),
+            ("half", "closed", 0), ("open", "closed", 0)]
+    for i, (e, m, y) in enumerate(idle):
+        save(draw_rabbit(220, eye=e, mouth=m, dy=y), f"rabbit_idle_{i}", 220)
+    eat = [("open", "half", 0), ("open", "open", 0), ("open", "half", 0), ("open", "closed", 0)]
+    for i, (e, m, y) in enumerate(eat):
+        save(draw_rabbit(220, eye=e, mouth=m, dy=y), f"rabbit_eat_{i}", 220)
+    drink = [("half", "half", 0), ("half", "open", 0), ("half", "open", 0), ("half", "half", 0)]
+    for i, (e, m, y) in enumerate(drink):
+        save(draw_rabbit(220, eye=e, mouth=m, dy=y), f"rabbit_drink_{i}", 220)
+    sleep = [("closed", "closed", 0), ("closed", "closed", 1)]
+    for i, (e, m, y) in enumerate(sleep):
+        save(draw_rabbit(220, eye=e, mouth=m, dy=y), f"rabbit_sleep_{i}", 220)
     save(draw_egg(200), "rabbit_egg", 200)
 
 
