@@ -46,8 +46,8 @@ static const char *TAG = "pet_ui";
 #define STAT_BAR_Y       56
 #define STAT_BAR_H       10
 #define FACE_Y           (-14)
-#define CAPTION_Y        96
-#define TOAST_BOTTOM     (-80)
+#define CAPTION_Y        88
+#define TOAST_BOTTOM     (-96)
 #define BTN_ROW_X        7
 #define BTN_ROW_STEP     60
 #define BTN_ROW_BOTTOM   (-12)
@@ -70,9 +70,12 @@ static pet_ui_action_cb_t s_on_action;
 static lv_obj_t *s_status;
 static lv_obj_t *s_clock;
 static lv_obj_t *s_bars[PET_STAT_COUNT];
+static lv_obj_t *s_ground;
 static lv_obj_t *s_face;
 static lv_obj_t *s_poop;
+static lv_obj_t *s_caption_box;
 static lv_obj_t *s_caption;
+static lv_obj_t *s_toast_box;
 static lv_obj_t *s_toast;
 static lv_obj_t *s_info;
 static lv_obj_t *s_info_text;
@@ -88,25 +91,26 @@ static const struct {
     const char *label;
     uint32_t color;
 } STAT_STYLE[PET_STAT_COUNT] = {
-    [PET_STAT_FULLNESS]  = {"FOOD",  0x9CC959},
-    [PET_STAT_HAPPINESS] = {"FUN",   0xFF6392},
-    [PET_STAT_ENERGY]    = {"ZZZ",   0x2EC4B6},
-    [PET_STAT_HYGIENE]   = {"CLEAN", 0x5DA9E9},
+    [PET_STAT_FULLNESS]  = {"Food",  0x9CC959},
+    [PET_STAT_HAPPINESS] = {"Fun",   0xFF6392},
+    [PET_STAT_ENERGY]    = {"Nap",   0x2EC4B6},
+    [PET_STAT_HYGIENE]   = {"Clean", 0x5DA9E9},
     [PET_STAT_HEALTH]    = {"HP",    0xFF5A5F},
 };
 
-/* Action bar: 0..4 are pet actions, 5 is INFO. Icon (LV_SYMBOL_*) + caption. */
+/* Action bar: 0..4 are pet actions, 5 is INFO. Icon + caption + icon colour. */
 static const struct {
     const char *icon;
     const char *text;
     pet_action_t act;
+    uint32_t color;
 } BTN[6] = {
-    {LV_SYMBOL_PLUS,     "FEED",  PET_ACT_FEED_MEAL},
-    {LV_SYMBOL_PLAY,     "PLAY",  PET_ACT_PLAY},
-    {LV_SYMBOL_EYE_OPEN, "LIGHT", PET_ACT_LIGHTS},
-    {LV_SYMBOL_TRASH,    "CLEAN", PET_ACT_CLEAN},
-    {LV_SYMBOL_TINT,     "MED",   PET_ACT_MEDICINE},
-    {LV_SYMBOL_LIST,     "INFO",  PET_ACT_COUNT},  // count = not a pet action
+    {LV_SYMBOL_PLUS,     "Feed",  PET_ACT_FEED_MEAL, 0x9CC959},
+    {LV_SYMBOL_PLAY,     "Play",  PET_ACT_PLAY,      0xFF6392},
+    {LV_SYMBOL_EYE_OPEN, "Light", PET_ACT_LIGHTS,    0xFFD166},
+    {LV_SYMBOL_TRASH,    "Clean", PET_ACT_CLEAN,     0x5DA9E9},
+    {LV_SYMBOL_TINT,     "Med",   PET_ACT_MEDICINE,  0xFF5A5F},
+    {LV_SYMBOL_LIST,     "Info",  PET_ACT_COUNT,     0x9AA9B8},  // count = not an action
 };
 
 static lv_obj_t *s_btn[6];
@@ -231,7 +235,7 @@ static void repaint_cb(lv_timer_t *t)
 static void toast_hide_cb(lv_timer_t *t)
 {
     (void)t;
-    lv_obj_set_hidden(s_toast, true);
+    lv_obj_set_hidden(s_toast_box, true);
     s_toast_timer = NULL;
 }
 
@@ -320,7 +324,9 @@ static void render(const pet_ui_snapshot_t *s)
 
     show_face(face_for(s->face, false));
     lv_obj_set_hidden(s_poop, !s->dirty);
-    lv_label_set_text(s_caption, caption_for(s));
+    const char *cap = caption_for(s);
+    lv_label_set_text(s_caption, cap);
+    lv_obj_set_hidden(s_caption_box, cap[0] == '\0');
 
     if (!lv_obj_is_hidden(s_info)) {
         char power[48];
@@ -350,7 +356,7 @@ void pet_ui_toast(const char *msg)
 {
     bsp_display_lock(0);
     lv_label_set_text(s_toast, msg);
-    lv_obj_set_hidden(s_toast, false);
+    lv_obj_set_hidden(s_toast_box, false);
     if (s_toast_timer) lv_timer_reset(s_toast_timer);
     else s_toast_timer = lv_timer_create(toast_hide_cb, TOAST_MS, NULL);
     bsp_display_unlock();
@@ -493,19 +499,27 @@ static void build_stat_row(lv_obj_t *scr)
         lv_obj_set_pos(label, x, STAT_LABEL_Y);
 
         lv_obj_t *bar = lv_bar_create(scr);
-        lv_obj_set_size(bar, STAT_COL_W, STAT_BAR_H);
+        lv_obj_set_size(bar, STAT_COL_W, UI_BAR_H);
         lv_obj_set_pos(bar, x, STAT_BAR_Y);
         lv_bar_set_range(bar, 0, 100);
-        lv_obj_set_style_bg_color(bar, UI_SURFACE, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, UI_TRACK, LV_PART_MAIN);
         lv_obj_set_style_bg_color(bar, lv_color_hex(STAT_STYLE[i].color), LV_PART_INDICATOR);
-        lv_obj_set_style_radius(bar, STAT_BAR_H / 2, LV_PART_MAIN);
-        lv_obj_set_style_radius(bar, STAT_BAR_H / 2, LV_PART_INDICATOR);
+        lv_obj_set_style_radius(bar, UI_BAR_H / 2, LV_PART_MAIN);
+        lv_obj_set_style_radius(bar, UI_BAR_H / 2, LV_PART_INDICATOR);
         s_bars[i] = bar;
     }
 }
 
 static void build_face(lv_obj_t *scr)
 {
+    // a soft pedestal under the pet, so it stands on something instead of floating
+    s_ground = lv_obj_create(scr);
+    lv_obj_set_size(s_ground, 210, 28);
+    lv_obj_set_style_radius(s_ground, 14, 0);
+    lv_obj_set_style_bg_color(s_ground, UI_GROUND, 0);
+    lv_obj_set_style_border_width(s_ground, 0, 0);
+    lv_obj_align(s_ground, LV_ALIGN_CENTER, 0, FACE_Y + 70);
+
     s_face = lv_image_create(scr);
     lv_obj_align(s_face, LV_ALIGN_CENTER, 0, FACE_Y);
     lv_obj_set_clickable(s_face, true);
@@ -523,19 +537,39 @@ static void build_face(lv_obj_t *scr)
     lv_obj_set_hidden(s_poop, true);
 }
 
+static lv_obj_t *make_pill(lv_obj_t *parent, int w, int h, lv_color_t bg)
+{
+    lv_obj_t *box = lv_obj_create(parent);
+    lv_obj_set_size(box, w, h);
+    lv_obj_set_style_bg_color(box, bg, 0);
+    lv_obj_set_style_radius(box, h / 2, 0);
+    lv_obj_set_style_border_width(box, 0, 0);
+    lv_obj_set_style_pad_all(box, 0, 0);
+    lv_obj_set_scrollable(box, false);
+    return box;
+}
+
 static void build_caption_and_toast(lv_obj_t *scr)
 {
-    s_caption = make_label(scr, &lv_font_montserrat_18, UI_TEXT);
-    lv_obj_set_width(s_caption, SCR_W - 28);
+    // caption as a soft speech bubble under the pet
+    s_caption_box = make_pill(scr, 280, 38, UI_BUBBLE);
+    lv_obj_set_style_radius(s_caption_box, 14, 0);
+    lv_obj_align(s_caption_box, LV_ALIGN_CENTER, 0, CAPTION_Y);
+    s_caption = make_label(s_caption_box, &lv_font_montserrat_18, UI_TEXT);
+    lv_obj_set_width(s_caption, 264);
     lv_obj_set_style_text_align(s_caption, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(s_caption, LV_ALIGN_CENTER, 0, CAPTION_Y);
+    lv_obj_center(s_caption);
     lv_label_set_text(s_caption, "");
+    lv_obj_set_hidden(s_caption_box, true);
 
-    s_toast = make_label(scr, &lv_font_montserrat_14, UI_WARN);
-    lv_obj_set_width(s_toast, SCR_W - 28);
+    // toast as a pill; dark ink on the warn colour so it stays readable
+    s_toast_box = make_pill(scr, 220, 36, UI_WARN);
+    lv_obj_align(s_toast_box, LV_ALIGN_BOTTOM_MID, 0, TOAST_BOTTOM);
+    s_toast = make_label(s_toast_box, &lv_font_montserrat_14, UI_ON_WARN);
+    lv_obj_set_width(s_toast, 208);
     lv_obj_set_style_text_align(s_toast, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(s_toast, LV_ALIGN_BOTTOM_MID, 0, TOAST_BOTTOM);
-    lv_obj_set_hidden(s_toast, true);
+    lv_obj_center(s_toast);
+    lv_obj_set_hidden(s_toast_box, true);
 }
 
 static lv_obj_t *make_action_button(lv_obj_t *parent, int i)
@@ -548,10 +582,11 @@ static lv_obj_t *make_action_button(lv_obj_t *parent, int i)
     lv_obj_add_style(btn, &st_btn_pressed, LV_STATE_PRESSED);
     lv_obj_add_style(btn, &st_btn_off, LV_STATE_DISABLED);
     lv_obj_add_style(btn, &st_btn_on, LV_STATE_CHECKED);
+    lv_obj_set_style_radius(btn, UI_RADIUS_LG, 0);  // rounder than the overlay buttons
 
-    lv_obj_t *icon = make_label(btn, &lv_font_montserrat_24, UI_TEXT);
+    lv_obj_t *icon = make_label(btn, &lv_font_montserrat_24, lv_color_hex(BTN[i].color));
     lv_label_set_text(icon, BTN[i].icon);
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 2);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 4);
 
     lv_obj_t *text = make_label(btn, &lv_font_montserrat_14, UI_TEXT_DIM);
     lv_label_set_text(text, BTN[i].text);
