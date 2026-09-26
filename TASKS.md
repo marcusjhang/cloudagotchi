@@ -56,3 +56,7 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
 - [x] Governance — `ocr` review gate + `lvgl-ui` skill + current structure diagram
 - [x] Growth matched to the original P1 — egg 5 min, baby 65 min, child age 3, **teen age 6**,
       adult; `PET_SCHEMA_VERSION` bumped to 2 (adds the teen stage, so old NVS blobs reset)
+- [x] UI code-friendliness — `pet_ui.c` split into `build_*` builders plus one layout-constants
+      block (no behaviour change). Modern-pet-UI inspiration (one large character, compact
+      status, a single bottom bar, soft panels) is already carried by `ui_theme.h` + the
+      `lvgl-ui` skill.
