@@ -23,6 +23,7 @@ references/tokens.md         colour scale, light/dark panels, geometry
 references/buttons.md        button anatomy, styles, state wiring
 references/icons.md          icon strategies and pitfalls
 references/taste.md          hierarchy, spacing, motion, checklist
+references/motifs.md         capsule bars, candy tiles, speech bubble, pedestal
 assets/templates/ui_theme.h  drop-in tokens
 assets/templates/action_button.c   the component
 examples/tamagotchi.md       a complete worked example

@@ -55,3 +55,10 @@ host-tested.
 content palette (food green, fun pink, energy teal, clean blue, health red);
 everything else is surface/border/ink/accent. Changing the look is a one-file
 edit.
+
+## Soft motifs used here
+
+The child-friendly pass applies `references/motifs.md`: capsule stat bars with a
+lighter track and mixed-case labels, rounder candy action tiles with colour-coded
+icons, the caption in a speech bubble, a dark ground pedestal under the sprite,
+and the toast as a warn-coloured pill with dark ink.

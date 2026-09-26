@@ -38,9 +38,12 @@ device UI (the `tamagotchi` example) and are meant to be copied and adapted.
 3. Decide which controls can be **disabled/active** and drive those states from a
    single source of truth (a `*_enabled()` rule function), not from UI guesses —
    `references/buttons.md`.
-4. Pick icons per `references/icons.md` (pixel-art images for a game/cute look,
+4. For a friendly / child-oriented screen, add the soft pieces from
+   `references/motifs.md` (capsule bars, candy action tiles, a speech-bubble
+   caption, a ground pedestal, a toast pill).
+5. Pick icons per `references/icons.md` (pixel-art images for a game/cute look,
    a FontAwesome subset for a clean tool, `LV_SYMBOL_*` only as an interim).
-5. Run the checklist at the end of `references/taste.md` before you ship.
+6. Run the checklist at the end of `references/taste.md` before you ship.
 
 ## Layout defaults
 
@@ -72,6 +75,7 @@ device UI (the `tamagotchi` example) and are meant to be copied and adapted.
 - `references/buttons.md` — button anatomy, styles, state wiring.
 - `references/icons.md` — icon strategies and pitfalls.
 - `references/taste.md` — spacing, hierarchy, and the pre-ship checklist.
+- `references/motifs.md` — capsule bars, candy tiles, speech bubble, pedestal, toast pill.
 - `assets/templates/ui_theme.h` — drop-in token header.
 - `assets/templates/action_button.c` — the component.
 - `examples/tamagotchi.md` — a complete worked example (stat bars, action bar,

@@ -16,10 +16,17 @@ UI_SURFACE_OFF      0x0C1218   disabled (barely above black)
 UI_PANEL            0x0B1420   overlays
 UI_BORDER           0x2A3644
 UI_TEXT             0xE8EEF4
-UI_TEXT_DIM         0x7C8A99   secondary only
+UI_TEXT_DIM         0x9AA9B8   secondary only
 UI_ACCENT           0x2EC4B6   active / checked
 UI_SUCCESS/WARN/DANGER                 semantic only
+UI_TRACK            0x1C2836   capsule bar track
+UI_GROUND           0x0F1822   pedestal under a character
+UI_BUBBLE           0x17222E   caption speech bubble
+UI_ON_WARN          0x2A1E00   dark ink on a warn fill
 ```
+
+For a friendlier, child-oriented look, use the pieces in `motifs.md` (capsule
+bars, candy tiles, a speech-bubble caption, a ground pedestal, a toast pill).
 
 Everything is `lv_color_hex(0x......)` behind a macro, e.g.
 `#define UI_SURFACE lv_color_hex(0x121A22)`.
