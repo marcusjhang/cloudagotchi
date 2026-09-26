@@ -28,7 +28,7 @@ gone and the pet's rules live in `firmware/main/pet.c`.
 | `firmware/main/persist.c` `journal.c` | NVS blob for the pet; boot count + reset reason. |
 | `firmware/main/app_imu.c` | Shake detector (QMI8658, 50 Hz task). |
 | `firmware/main/faces/` | Placeholder sprites (RGB565A8 `lv_image_dsc_t`, from upstream). |
-| `tools/sprites/` | Sprite + icon pipeline: `PROMPTS.md` (generation), `prepare_sprites.py` (raw → clean PNG), `make_icons.py` (draws the UI icon set → `assets/icons/`), `to_lvgl.py` (PNG → `firmware/main/sprites/*.c` + `sprites.h`). Drop-in: raw PNGs in `tools/sprites/raw/`, run the scripts; CMake globs `sprites/*.c`. |
+| `tools/sprites/` | Sprite + icon pipeline: `PROMPTS.md` (AI generation), `prepare_sprites.py` (raw → clean PNG), `make_icons.py` (draws the monochrome UI icons **and the rabbit** → `assets/icons/`), `to_lvgl.py` (PNG → `firmware/main/sprites/*.c` + `sprites.h`). Drop-in: raw PNGs in `tools/sprites/raw/`, run the scripts; CMake globs `sprites/*.c`. |
 | `tools/sim/`, `tools/tests/`, `tools/e2e/` | Host tests: scenario sim, hardware math, and pet E2E (full lifecycle, needs, sleep, sickness, death, catch-up, persistence, action-enablement parity). **`tools/check.sh` before you commit.** |
 
 **Structure diagram:** Excalidraw *"esp32-tamagotchi — Structure"* —

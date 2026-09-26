@@ -8,14 +8,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PET_SCHEMA_VERSION 2  // v2 added the teen stage; persist rejects older blobs
+#define PET_SCHEMA_VERSION 3  // v3 added thirst; persist rejects older blobs
 
 typedef enum {
-    PET_STAT_FULLNESS,
+    PET_STAT_FULLNESS,   // food
     PET_STAT_HAPPINESS,
-    PET_STAT_ENERGY,
+    PET_STAT_ENERGY,     // sleep
     PET_STAT_HYGIENE,
-    PET_STAT_HEALTH,
+    PET_STAT_THIRST,     // water
+    PET_STAT_HEALTH,     // must stay last
     PET_STAT_COUNT
 } pet_stat_t;
 
@@ -45,8 +46,8 @@ typedef enum {
 } pet_face_t;
 
 typedef enum {
-    PET_ACT_FEED_MEAL,
-    PET_ACT_FEED_SNACK,
+    PET_ACT_FEED_MEAL,  // food
+    PET_ACT_DRINK,      // water
     PET_ACT_PLAY,
     PET_ACT_LIGHTS,     // toggle sleep
     PET_ACT_CLEAN,
@@ -102,6 +103,8 @@ typedef enum {
     PET_NEED_MED,     // sick
     PET_NEED_CLEAN,   // dirty
     PET_NEED_FOOD,    // hungry
+    PET_NEED_WATER,   // thirsty
+    PET_NEED_SLEEP,   // tired
     PET_NEED_FUN,     // bored
 } pet_need_t;
 

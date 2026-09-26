@@ -44,7 +44,7 @@ static void visit(pet_t *p, int64_t t)
     if (pet_stat(p, PET_STAT_HEALTH) < SICK_BELOW) pet_act(p, PET_ACT_MEDICINE, t);
     pet_act(p, PET_ACT_FEED_MEAL, t);
     pet_act(p, PET_ACT_PLAY, t);
-    if (pet_stat(p, PET_STAT_HAPPINESS) < 60) pet_act(p, PET_ACT_FEED_SNACK, t);
+    if (pet_stat(p, PET_STAT_THIRST) < 70) pet_act(p, PET_ACT_DRINK, t);
 }
 
 /* -- 1. a full life: egg -> baby -> child -> teen -> adult ----------------- */
@@ -101,7 +101,7 @@ static void scenario_neglect(void)
 /* -- 3. feeding: meal fills, refuses when full; snack adds happy + weight --- */
 static void scenario_feeding(void)
 {
-    printf("[feeding] meal / snack\n");
+    printf("[feeding] meal / water\n");
     pet_t p;
     pet_new(&p, T0);
     pet_apply(&p, T0 + EGG_HATCH_S + 1);
@@ -115,16 +115,15 @@ static void scenario_feeding(void)
     CHECK(pet_act(&p, PET_ACT_FEED_MEAL, T0 + EGG_HATCH_S + 10) == PET_BLOCKED_FULL,
           "refuses a meal when full");
 
-    const int w = p.weight, hp = pet_stat(&p, PET_STAT_HAPPINESS);
-    pet_act(&p, PET_ACT_FEED_SNACK, T0 + EGG_HATCH_S + 11);
-    CHECK(p.weight == w + 1, "a snack adds weight");
-    CHECK(pet_stat(&p, PET_STAT_HAPPINESS) >= hp, "a snack is a treat");
+    const int th = pet_stat(&p, PET_STAT_THIRST);
+    pet_act(&p, PET_ACT_DRINK, T0 + EGG_HATCH_S + 11);
+    CHECK(pet_stat(&p, PET_STAT_THIRST) >= th, "water quenches thirst");
 
     pet_act(&p, PET_ACT_LIGHTS, T0 + EGG_HATCH_S + 12);
     CHECK(pet_act(&p, PET_ACT_FEED_MEAL, T0 + EGG_HATCH_S + 13) == PET_BLOCKED_ASLEEP,
           "no meal while asleep");
-    CHECK(pet_act(&p, PET_ACT_FEED_SNACK, T0 + EGG_HATCH_S + 14) == PET_BLOCKED_ASLEEP,
-          "no snack while asleep");
+    CHECK(pet_act(&p, PET_ACT_DRINK, T0 + EGG_HATCH_S + 14) == PET_BLOCKED_ASLEEP,
+          "no water while asleep");
 }
 
 /* -- 4. poop: it happens, cleaning resets the clock, neglect costs health --- */
@@ -276,7 +275,7 @@ static void scenario_persistence(void)
     pet_t p;
     pet_new(&p, T0);
     pet_apply(&p, T0 + EGG_HATCH_S + 500);
-    pet_act(&p, PET_ACT_FEED_SNACK, T0 + EGG_HATCH_S + 600);
+    pet_act(&p, PET_ACT_DRINK, T0 + EGG_HATCH_S + 600);
     const pet_t saved = p;
 
     pet_t loaded;
@@ -348,12 +347,12 @@ static void scenario_action_parity(void)
 
     pet_new(&p, now);                         check_parity(&p, now, "egg");
     pet_apply(&p, now + EGG_HATCH_S + 1);     check_parity(&p, now + EGG_HATCH_S + 1, "baby");
-    pet_act(&p, PET_ACT_FEED_SNACK, now + EGG_HATCH_S + 2);
-    pet_act(&p, PET_ACT_FEED_SNACK, now + EGG_HATCH_S + 3);
-    pet_act(&p, PET_ACT_FEED_SNACK, now + EGG_HATCH_S + 4);
-    pet_act(&p, PET_ACT_FEED_SNACK, now + EGG_HATCH_S + 5);
-    pet_act(&p, PET_ACT_FEED_SNACK, now + EGG_HATCH_S + 6);  // full-ish
-    check_parity(&p, now + EGG_HATCH_S + 6, "full baby");
+    pet_act(&p, PET_ACT_DRINK, now + EGG_HATCH_S + 2);
+    pet_act(&p, PET_ACT_DRINK, now + EGG_HATCH_S + 3);
+    pet_act(&p, PET_ACT_DRINK, now + EGG_HATCH_S + 4);
+    pet_act(&p, PET_ACT_DRINK, now + EGG_HATCH_S + 5);
+    pet_act(&p, PET_ACT_DRINK, now + EGG_HATCH_S + 6);  // full-ish
+    check_parity(&p, now + EGG_HATCH_S + 6, "watered baby");
     pet_act(&p, PET_ACT_LIGHTS, now + EGG_HATCH_S + 7);
     check_parity(&p, now + EGG_HATCH_S + 7, "asleep");
     p.dirty = 1;                              check_parity(&p, now + EGG_HATCH_S + 8, "dirty");

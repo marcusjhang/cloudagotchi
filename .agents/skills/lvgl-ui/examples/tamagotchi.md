@@ -3,54 +3,50 @@
 A virtual pet on a Waveshare ESP32-S3-Touch-AMOLED-1.8 (368x448 AMOLED, I2C touch),
 built with ESP-IDF v5.5 + LVGL 9. The conventions in this skill come from here.
 
-## Final screen: monochrome, face-first
+## Final screen: monochrome rabbit, minimal chrome
 
-The owner's reference was a small device showing a **big friendly face on black
-with no chrome** (and a single tiny word). That is the whole design: cuteness
-comes from the face and from restraint, not colour. White ink on true black is
-also the best choice for an AMOLED (pixels off, no burn-in).
+The owner's reference was a small device showing a big friendly **face on black
+with no chrome**. That is the design: cuteness comes from the character and from
+restraint, not colour. White ink on true black is also best for an AMOLED.
 
 ```
 ┌────────────────────────────┐
+│  (chatbox)                 │  food / water / sleep icon, only when it wants one
+│            ( rabbit )      │  the hero; frame changes to eat / drink / sleep
 │                            │
-│          ( pet )           │  the hero, centred
-│         (call ring)        │  a pulsing white ring when it needs something
-│           hungry           │  one tiny lowercase word, dim
-│                            │
-│  (o) (o) (o) (o)           │  Feed / Play / Clean / Med - dark circles,
-└────────────────────────────┘  white icons, no captions
+│   (food) (water) (sleep)   │  three round buttons, white icons, no captions
+└────────────────────────────┘
 ```
 
-Design rules that got us here:
+Behaviour that makes it feel alive, not like a form:
 
-- **One hero, one word, one call.** The pet fills the screen; a single pulsing
-  **call ring** (from the pure `pet_need()`) shows what it needs and is itself
-  the button; one lowercase word (`hungry / bored / sleepy / sick / dirty / ok`)
-  is the only text.
-- **Controls recede.** Four dark circles with white icons, only 72 px, no tiles
-  and no captions, so at rest the screen is mostly the face. `pet_action_enabled()`
-  dims what the pet would refuse.
-- **Monochrome beats candy here.** Two earlier colour attempts (bright pastel, then
-  "cozy night" navy) both read as generic. Removing colour entirely is what made it
-  look intentional. Keep a colour variant mocked (scene `A72ceSRfIgH`) if needed.
-- **Settings hide.** Long-press the pet for time/brightness/reset; tap a dead pet to
-  restart. No hidden gestures for the core loop.
+- **A chatbox, not a wall of meters.** When a need is low, a small rounded bubble
+  shows just the icon for it (food / water / sleep / clean / med). It is subtle on
+  purpose — the pet should not scream at you. Tapping the bubble gives the item.
+- **Food and water drop in.** Pressing Food/Water spawns the icon above the pet and
+  animates it down onto it (`lv_anim`, ~450 ms, ease-in), then the pet switches to
+  its eat/drink frame for the transient window. Action and feedback are the same
+  gesture.
+- **Sleep visibly happens.** The sleep button toggles the lights; the rabbit's eyes
+  close and it naps. No text explains it.
+- **Three controls only.** Food, Water, Sleep. Everything else (clean, medicine) is
+  contextual through the chatbox, so a small child sees the fewest possible buttons.
+- **One need model.** `pet_need()` (pure, host-tested) returns the single most urgent
+  need: MED > CLEAN > FOOD > WATER > SLEEP > FUN. `pet_action_enabled()` dims buttons.
 
-## Icons are images, not glyphs
+## The art is generated, not a font
 
-Every pictogram is generated (`tools/sprites/make_icons.py`) as a rounded PNG and
-compiled to RGB565A8 with LVGL's `LVGLImage.py`: burger = feed, ball = play, water
-drop = clean, medical cross = medicine, smiley = happy. They are **white
-silhouettes**, supersampled 4x then downscaled for smooth edges. This avoids the
-two failure modes of glyph icons: no emoji, and no mismatched FontAwesome line-art
-that reads as a developer default. Concrete shapes, not abstract ones — an early
-set (a star for play, a ring for clean) failed clear user testing.
+The rabbit (`rabbit_idle / eat / drink / sleep / egg`) and every icon are drawn by
+`tools/sprites/make_icons.py` as **white silhouettes** with features cut out
+(transparent), then compiled to RGB565A8 with LVGL's `LVGLImage.py`. Supersample 4x
+then downscale for smooth edges. This gives a consistent, deliberately-drawn set
+with no emoji and no mismatched FontAwesome line-art.
 
-## State without words
+## Lessons (learned the hard way)
 
-- `pet_need()` (pure, host-tested) returns the single most urgent need
-  (MED > CLEAN > FOOD > FUN). One pulsing ring shows it; tapping the ring performs
-  the fix.
-- `pet_action_enabled()` (pure) drives each button's disabled state, so a refused
-  action is simply not pressable.
-- The face, the poop sprite and sleep carry the rest.
+- Colour was never the problem; clutter was. Two colour passes read as generic;
+  monochrome + one character + three controls reads as intentional.
+- Abstract glyphs fail. A star for play and a ring for clean confused users; a
+  burger, a water drop, a moon and a medical cross did not.
+- A bar/label beats a heart row; a concrete icon beats an abstract one.
+- Mock the screen (frames in Excalidraw) and let the owner pick before you flash.

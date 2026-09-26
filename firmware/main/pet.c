@@ -86,6 +86,7 @@ static void step(pet_t *p, int64_t now, int32_t dt)
     const int need = p->stage == PET_STAGE_BABY ? BABY_DECAY_X100 : 100;
     const int awake = p->asleep ? ASLEEP_DECAY_X100 : 100;
     add(p, PET_STAT_FULLNESS,  -rate_u(DECAY_FULLNESS_PER_H,  dt) * need * awake / 10000);
+    add(p, PET_STAT_THIRST,    -rate_u(DECAY_THIRST_PER_H,    dt) * need * awake / 10000);
     add(p, PET_STAT_HAPPINESS, -rate_u(DECAY_HAPPINESS_PER_H, dt) * need * awake / 10000);
     add(p, PET_STAT_HYGIENE,   -rate_u(DECAY_HYGIENE_PER_H,   dt) * awake / 100);
     if (p->asleep) {
@@ -219,11 +220,10 @@ pet_result_t pet_act(pet_t *p, pet_action_t a, int64_t now)
         add(p, PET_STAT_FULLNESS, (int64_t)MEAL_FULLNESS * PT);
         set_transient(p, PET_FACE_EATING, now);
         break;
-    case PET_ACT_FEED_SNACK:
+    case PET_ACT_DRINK:
         if (p->asleep) return PET_BLOCKED_ASLEEP;
-        add(p, PET_STAT_FULLNESS, (int64_t)SNACK_FULLNESS * PT);
-        add(p, PET_STAT_HAPPINESS, (int64_t)SNACK_HAPPINESS * PT);
-        if (p->weight < 99) p->weight++;
+        if (pet_stat(p, PET_STAT_THIRST) > WATER_FULL_ABOVE) return PET_BLOCKED_FULL;
+        add(p, PET_STAT_THIRST, (int64_t)DRINK_THIRST * PT);
         set_transient(p, PET_FACE_EATING, now);
         break;
     case PET_ACT_PLAY:
@@ -283,8 +283,8 @@ bool pet_action_enabled(const pet_t *p, pet_action_t a)
     switch (a) {
     case PET_ACT_FEED_MEAL:
         return !p->asleep && pet_stat(p, PET_STAT_FULLNESS) <= FULL_ABOVE;
-    case PET_ACT_FEED_SNACK:
-        return !p->asleep;
+    case PET_ACT_DRINK:
+        return !p->asleep && pet_stat(p, PET_STAT_THIRST) <= WATER_FULL_ABOVE;
     case PET_ACT_PLAY:
         return !p->asleep && pet_stat(p, PET_STAT_ENERGY) >= PLAY_NEEDS_ENERGY;
     case PET_ACT_LIGHTS:
@@ -309,6 +309,8 @@ pet_need_t pet_need(const pet_t *p)
     if (pet_stat(p, PET_STAT_HEALTH) < SICK_BELOW) return PET_NEED_MED;
     if (p->dirty) return PET_NEED_CLEAN;
     if (pet_stat(p, PET_STAT_FULLNESS) < CRITICAL_BELOW) return PET_NEED_FOOD;
+    if (pet_stat(p, PET_STAT_THIRST) < CRITICAL_BELOW) return PET_NEED_WATER;
+    if (pet_stat(p, PET_STAT_ENERGY) < SLEEP_BELOW) return PET_NEED_SLEEP;
     if (pet_stat(p, PET_STAT_HAPPINESS) < CRITICAL_BELOW) return PET_NEED_FUN;
     return PET_NEED_NONE;
 }
@@ -319,6 +321,8 @@ const char *pet_need_name(pet_need_t n)
     case PET_NEED_MED:   return "sick";
     case PET_NEED_CLEAN: return "clean";
     case PET_NEED_FOOD:  return "food";
+    case PET_NEED_WATER: return "water";
+    case PET_NEED_SLEEP: return "sleep";
     case PET_NEED_FUN:   return "fun";
     default:             return "ok";
     }
@@ -368,7 +372,7 @@ const char *pet_stage_name(pet_stage_t s)
 
 const char *pet_action_name(pet_action_t a)
 {
-    static const char *const names[] = {"meal", "snack", "play", "lights", "clean",
+    static const char *const names[] = {"meal", "water", "play", "lights", "clean",
                                         "medicine", "shake", "new egg"};
     return a < sizeof(names) / sizeof(names[0]) ? names[a] : "?";
 }

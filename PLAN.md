@@ -187,25 +187,25 @@ hunger/happy) and a single good/bad adult branch rather than the P1's full roste
 Icon-only hero screen (v3, 2026-09-19 — see the `lvgl-ui` skill, `references/screens.md`).
 No words at rest: hearts, the pet, one call, four candy tiles.
 
-Monochrome, face-first (owner's reference: a big friendly face on black with no
-chrome — the cuteness is the face and the restraint, not colour).
+Monochrome rabbit, minimal chrome. The pet is the screen; a small **chatbox**
+shows what it wants (an icon, subtle); giving **food** or **water** drops the item
+onto it and it eats/drinks; **sleep** switches the lights off and it naps.
 
 ```
 ┌────────────────────────────┐
+│  (chatbox)                 │  food / water / sleep / ... icon, only when wanted
+│            ( rabbit )      │  the hero; frame changes to eat / drink / sleep
 │                            │
-│          ( pet )           │  the hero, centred
-│         (call ring)        │  a pulsing white ring when it needs something
-│           hungry           │  one tiny lowercase word, dim
-│                            │
-│  (o) (o) (o) (o)           │  Feed / Play / Clean / Med - dark circles,
-└────────────────────────────┘  white icons, no captions
+│   (food) (water) (sleep)   │  three round buttons, white icons, no captions
+└────────────────────────────┘
 ```
 
-`pet_need()` (pure, host-tested) picks the most urgent need for the call ring and
-the word; `pet_action_enabled()` drives each button's disabled state. Icons are a
-generated white image set (`tools/sprites/make_icons.py` → RGB565A8). Settings
-(time, brightness, reset) hide behind a long-press on the pet. A colour version
-("cozy night") lives in the mocked options scene `A72ceSRfIgH` if we ever want it.
+Needs now include **thirst** (water) and **sleep** (a nap when energy is low),
+ahead of boredom: `pet_need()` (pure, host-tested) returns MED > CLEAN > FOOD >
+WATER > SLEEP > FUN. `pet_action_enabled()` drives each button. Tapping the
+chatbox gives whatever it is asking for. Icons and the rabbit are a generated
+white image set (`tools/sprites/make_icons.py` → RGB565A8). Settings hide behind a
+long-press on the pet. A colour version lives in the mocked scene `A72ceSRfIgH`.
 
 Touch rules from the field guide: parallax puts contact **15–25 px below** the target ⇒ every
 hit zone extended ~20 px downward (`lv_obj_set_ext_click_area`), nothing under 40 px tall,

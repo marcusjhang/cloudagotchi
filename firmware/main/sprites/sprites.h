@@ -4,8 +4,12 @@
 
 extern const lv_image_dsc_t ic_clean;
 extern const lv_image_dsc_t ic_feed;
-extern const lv_image_dsc_t ic_feed_s;
-extern const lv_image_dsc_t ic_happy;
-extern const lv_image_dsc_t ic_happy_s;
 extern const lv_image_dsc_t ic_med;
 extern const lv_image_dsc_t ic_play;
+extern const lv_image_dsc_t ic_sleep;
+extern const lv_image_dsc_t ic_water;
+extern const lv_image_dsc_t rabbit_drink;
+extern const lv_image_dsc_t rabbit_eat;
+extern const lv_image_dsc_t rabbit_egg;
+extern const lv_image_dsc_t rabbit_idle;
+extern const lv_image_dsc_t rabbit_sleep;

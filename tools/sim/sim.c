@@ -74,7 +74,7 @@ static void visit(pet_t *p, int64_t t, tally_t *k)
     if (pet_stat(p, PET_STAT_HEALTH) < SICK_BELOW) pet_act(p, PET_ACT_MEDICINE, t);
     r = pet_act(p, PET_ACT_FEED_MEAL, t);  if (r != PET_OK) k->blocked++;
     r = pet_act(p, PET_ACT_PLAY, t);       if (r != PET_OK) k->blocked++;
-    if (pet_stat(p, PET_STAT_HAPPINESS) < 60) pet_act(p, PET_ACT_FEED_SNACK, t);
+    if (pet_stat(p, PET_STAT_THIRST) < 70) pet_act(p, PET_ACT_DRINK, t);
 }
 
 static void scenario_good_owner(int days)

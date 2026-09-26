@@ -25,6 +25,7 @@
 // keeps every bar out of the red; skip a whole day and it is sad, skip two
 // and it is sick. The sim's "good owner" scenario asserts this.
 #define DECAY_FULLNESS_PER_H       6       // 100 -> red in ~12 h awake; overnight gap survives on a 19:00 meal
+#define DECAY_THIRST_PER_H         5       // water, paced so a visit can cover food + water
 #define DECAY_HAPPINESS_PER_H      5
 #define DECAY_ENERGY_AWAKE_PER_H   7       // ~11 h awake before it nods off on its own (energy is never "neglect")
 #define GAIN_ENERGY_ASLEEP_PER_H   40      // 2.5 h nap refills it
@@ -42,7 +43,9 @@
 #define HEALTH_RECOVER_ABOVE   50          // health only climbs while fullness/happiness/hygiene are all above this
 #define AUTO_SLEEP_BELOW       20          // energy below this -> falls asleep by itself
 #define PLAY_NEEDS_ENERGY      15
+#define SLEEP_BELOW            35          // energy under this -> the pet wants a nap (a "call")
 #define FULL_ABOVE             90          // refuses a meal above this (snacks always go down)
+#define WATER_FULL_ABOVE       90          // refuses a drink above this
 
 /* ---- timings (seconds) ------------------------------------------------ */
 #define CARE_MISTAKE_S         (30 * 60)   // a stat left critical this long = one care mistake
@@ -60,6 +63,7 @@
 
 /* ---- action effects (points) ------------------------------------------ */
 #define MEAL_FULLNESS          40
+#define DRINK_THIRST           45
 #define SNACK_FULLNESS         15
 #define SNACK_HAPPINESS        10
 #define PLAY_HAPPINESS         30
