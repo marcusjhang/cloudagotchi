@@ -49,9 +49,12 @@
 #define POOP_INTERVAL_S        (5 * 3600)  // awake time after a clean-up until the next poop (~3 a day)
 #define DIRTY_GRACE_S          (2 * 3600)  // poop is cosmetic until it has sat this long; then it counts as neglect
 #define DEATH_AFTER_ZERO_HEALTH_S (4 * 3600)
+// Growth matched to the original P1: hatch 5 min, baby 65 min, child at age 3
+// "years", adult at age 6 (one year = one day). See PLAN §4.4.
 #define EGG_HATCH_S            (5 * 60)
-#define BABY_TO_CHILD_S        (24 * 3600)
-#define CHILD_TO_ADULT_S       (4 * 24 * 3600)
+#define BABY_TO_CHILD_S        (65 * 60)
+#define CHILD_TO_TEEN_S        (3 * 24 * 3600)
+#define TEEN_TO_ADULT_S        (6 * 24 * 3600)
 #define ADULT_BAD_MISTAKES     4           // this many mistakes by adulthood -> the grumpy adult
 #define TRANSIENT_S            2           // how long eating/playing/startled faces show
 

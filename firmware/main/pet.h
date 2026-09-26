@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PET_SCHEMA_VERSION 1
+#define PET_SCHEMA_VERSION 2  // v2 added the teen stage; persist rejects older blobs
 
 typedef enum {
     PET_STAT_FULLNESS,
@@ -23,6 +23,7 @@ typedef enum {
     PET_STAGE_EGG,
     PET_STAGE_BABY,
     PET_STAGE_CHILD,
+    PET_STAGE_TEEN,
     PET_STAGE_ADULT_GOOD,
     PET_STAGE_ADULT_BAD,
     PET_STAGE_DEAD,

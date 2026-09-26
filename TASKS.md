@@ -23,8 +23,9 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
 
 ## Host tests (run before every commit)
 
-- [x] `tools/check.sh` — rules sim (incl. `pet_action_enabled` and the Phase 3→4 migration),
-      hardware math (BCD, build time, VBAT), battery ring (wrap + order)
+- [x] `tools/check.sh` — rules sim, hardware math (BCD, build time, VBAT), battery ring,
+      and **pet E2E** (`tools/e2e`): full lifecycle, needs, sleep, sickness, death/revive,
+      catch-up, persistence round-trip, and `pet_action_enabled()` ↔ `pet_act()` parity
 - [ ] add a host test for any new pure logic
 
 ## Process
@@ -53,3 +54,5 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
 - [x] Journal readout — `batt_ring.h` (72 samples = 12 h), self-dump at boot, host-tested
 - [x] Sprite pipeline — `tools/sprites/` (PROMPTS, prepare, to_lvgl), proven end to end
 - [x] Governance — `ocr` review gate + `lvgl-ui` skill + current structure diagram
+- [x] Growth matched to the original P1 — egg 5 min, baby 65 min, child age 3, **teen age 6**,
+      adult; `PET_SCHEMA_VERSION` bumped to 2 (adds the teen stage, so old NVS blobs reset)

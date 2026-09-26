@@ -124,7 +124,7 @@ typedef struct {
     int64_t  born_at;        // epoch s
     int64_t  updated_at;     // epoch s — last time decay was applied
     uint8_t  fullness, happiness, energy, hygiene, health;   // 0..100
-    uint8_t  stage;          // EGG, BABY, CHILD, ADULT_GOOD, ADULT_BAD, DEAD
+    uint8_t  stage;          // EGG, BABY, CHILD, TEEN, ADULT_GOOD, ADULT_BAD, DEAD
     uint8_t  asleep;         // lights off
     uint8_t  dirty;          // poop on screen
     uint16_t care_mistakes;
@@ -166,9 +166,14 @@ every second while awake with h ≈ 0.0003. `FAST_FORWARD` (build flag) multipli
 |---|---|---|
 | egg | new pet | `egg_*` (wobble) |
 | baby | age > 5 min | `baby_*` — decay × 1.5 |
-| child | age > 24 h | `child_*` |
-| adult_good / adult_bad | age > 4 d, care_mistakes ≤ 3 / > 3 | `adult_*` / `adultbad_*` |
+| child | age > 65 min | `child_*` |
+| teen | age > 3 d | `teen_*` |
+| adult_good / adult_bad | age > 6 d, care_mistakes ≤ 3 / > 3 | `adult_*` / `adultbad_*` |
 | dead | health 0 for > 2 h | `dead_*`; long-press → new egg |
+
+Timings follow the original P1 (hatch 5 min, baby 65 min, ages 3 and 6 "years" where one
+year = one day). We keep our richer stat set (energy, hygiene, health on top of the classic
+hunger/happy) and a single good/bad adult branch rather than the P1's full rosters.
 
 **Phase 0–4 ships baby only.** Stages are data (a table), so adding sets later is art, not code.
 
@@ -321,6 +326,7 @@ clock face. Phase 6: NTP, SPIFFS sprite packs, OTA, web status page.
 | Layer | How | When |
 |---|---|---|
 | Game rules | `tools/sim/` host build of `pet.c`, assertions over simulated days | every change to `pet.c` / `config.h` (CI-able) |
+| Pet E2E | `tools/e2e/` host build of `pet.c`: full lifecycle (egg → baby → child → teen → adult), needs, sleep, sickness, death/revive, catch-up, persistence round-trip, `pet_action_enabled` ↔ `pet_act` parity | every change to `pet.c` / `config.h` (CI-able) |
 | UI | on device; `FAST_FORWARD=60`; touch log at INFO | Phase 3 |
 | Power | journal in NVS: boot reason, sleep entries, battery samples; `tools/journal_dump.py` over serial | Phase 4 soaks |
 | Health | free heap + `lv_mem` line every 60 s at INFO | always |

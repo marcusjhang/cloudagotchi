@@ -74,7 +74,10 @@ static void step(pet_t *p, int64_t now, int32_t dt)
     if (p->stage == PET_STAGE_BABY && age >= BABY_TO_CHILD_S) {
         p->stage = PET_STAGE_CHILD;
     }
-    if (p->stage == PET_STAGE_CHILD && age >= CHILD_TO_ADULT_S) {
+    if (p->stage == PET_STAGE_CHILD && age >= CHILD_TO_TEEN_S) {
+        p->stage = PET_STAGE_TEEN;
+    }
+    if (p->stage == PET_STAGE_TEEN && age >= TEEN_TO_ADULT_S) {
         p->stage = p->care_mistakes >= ADULT_BAD_MISTAKES ? PET_STAGE_ADULT_BAD
                                                           : PET_STAGE_ADULT_GOOD;
     }
@@ -335,7 +338,7 @@ const char *pet_face_name(pet_face_t f)
 
 const char *pet_stage_name(pet_stage_t s)
 {
-    static const char *const names[] = {"egg", "baby", "child", "adult", "grump", "dead"};
+    static const char *const names[] = {"egg", "baby", "child", "teen", "adult", "grump", "dead"};
     return s < sizeof(names) / sizeof(names[0]) ? names[s] : "?";
 }
 

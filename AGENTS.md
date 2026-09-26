@@ -29,7 +29,7 @@ gone and the pet's rules live in `firmware/main/pet.c`.
 | `firmware/main/app_imu.c` | Shake detector (QMI8658, 50 Hz task). |
 | `firmware/main/faces/` | Placeholder sprites (RGB565A8 `lv_image_dsc_t`, from upstream). |
 | `tools/sprites/` | Sprite pipeline: `PROMPTS.md` (generation), `prepare_sprites.py` (raw → clean PNG), `to_lvgl.py` (PNG → `firmware/main/sprites/*.c` + `sprites.h`). Drop-in: raw PNGs in `tools/sprites/raw/`, run the two scripts; CMake globs `sprites/*.c`. |
-| `tools/sim/`, `tools/tests/` | Host tests: game rules + hardware math. **`tools/check.sh` before you commit.** |
+| `tools/sim/`, `tools/tests/`, `tools/e2e/` | Host tests: scenario sim, hardware math, and pet E2E (full lifecycle, needs, sleep, sickness, death, catch-up, persistence, action-enablement parity). **`tools/check.sh` before you commit.** |
 
 **Structure diagram:** Excalidraw *"esp32-tamagotchi — Structure"* —
 https://app.excalidraw.com/s/919s34P0y0E/4WRHwsoGZ8m (workspace `919s34P0y0E`, scene
@@ -39,7 +39,7 @@ updates this scene in the same step.**
 ## Commands
 
 ```bash
-# host tests (no hardware, < 1 s): game rules + hardware math
+# host tests (no hardware, < 1 s): rules sim + hardware math + pet E2E
 tools/check.sh
 # ...or just the game rules
 tools/sim/run.sh
