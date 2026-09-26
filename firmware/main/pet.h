@@ -94,6 +94,19 @@ pet_result_t pet_act(pet_t *p, pet_action_t a, int64_t now);      // apply first
 
 // Would `pet_act` succeed right now? Pure; the UI greys out what it can't do.
 bool         pet_action_enabled(const pet_t *p, pet_action_t a);
+
+// The single thing the pet most needs right now, if anything. The UI shows one
+// "call" for it (like the original's attention icon) instead of five meters.
+typedef enum {
+    PET_NEED_NONE,
+    PET_NEED_MED,     // sick
+    PET_NEED_CLEAN,   // dirty
+    PET_NEED_FOOD,    // hungry
+    PET_NEED_FUN,     // bored
+} pet_need_t;
+
+pet_need_t   pet_need(const pet_t *p);
+const char  *pet_need_name(pet_need_t n);
 pet_face_t   pet_face(const pet_t *p, int64_t now);
 int          pet_stat(const pet_t *p, pet_stat_t s);              // 0..100
 int64_t      pet_age_s(const pet_t *p, int64_t now);

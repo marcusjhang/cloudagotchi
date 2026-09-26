@@ -184,17 +184,25 @@ hunger/happy) and a single good/bad adult branch rather than the P1's full roste
 
 ### 4.6 Screen (368 × 448)
 
+Hero layout: the pet owns the middle, needs are coarse hearts, controls are few and
+summoned (v2, 2026-09-19 — see the `lvgl-ui` skill's `references/screens.md`).
+
 ```
 ┌────────────────────────────┐
-│ 12:23              🔋 87 % │  status strip 24 px
+│ teen · 3d 4h     14:07 87% │  status: stage·age (left), clock·battery (right)
+│ Food ♥♥♥♡     Fun ♥♥♥♡     │  two needs, four hearts each (like the original)
 │                            │
-│        pet sprite          │  320 × 320 (160 @ 2×), centred, y+20
+│          [ ! ]             │  one pulsing "call" badge over the pet; tap = fix
+│          pet               │  pet centred on a soft pedestal (the hero)
 │                            │
-│  🍔▮▮▮▯▯ ❤▮▮▮▮▯ ⚡▮▮▯▯▯ ✨▮▮▮▮▮ │  stat row (cloudagotchi `make_stat_row`)
-│                            │
-│ [🍔] [🎮] [💡] [🧹] [💊] [≡] │  action bar: 6 × 56 px wide, **≥ 56 px tall**
+│  [ Feed ] [ Play ] [ Clean ]│  3 big tiles (~94×80, ~7 mm)      [gear] → menu
 └────────────────────────────┘
 ```
+
+The gear summons an icon grid (Feed, Snack, Lights, Clean, Med, Meter, Settings,
+Close); METER and SETTINGS are summoned overlays. `pet_need()` (pure, host-tested)
+picks the single most urgent need for the call; `pet_action_enabled()` drives each
+tile's disabled state. No hidden gestures in the core loop.
 
 Touch rules from the field guide: parallax puts contact **15–25 px below** the target ⇒ every
 hit zone extended ~20 px downward (`lv_obj_set_ext_click_area`), nothing under 40 px tall,

@@ -57,6 +57,10 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
 - [x] Growth matched to the original P1 — egg 5 min, baby 65 min, child age 3, **teen age 6**,
       adult; `PET_SCHEMA_VERSION` bumped to 2 (adds the teen stage, so old NVS blobs reset)
 - [x] UI code-friendliness — `pet_ui.c` split into `build_*` builders plus one layout-constants
-      block (no behaviour change). Modern-pet-UI inspiration (one large character, compact
-      status, a single bottom bar, soft panels) is already carried by `ui_theme.h` + the
-      `lvgl-ui` skill.
+      block. Modern-pet-UI inspiration (one large character, compact status, soft panels) is
+      carried by `ui_theme.h` + the `lvgl-ui` skill.
+- [x] UI hero redesign — after research (original P1's 3-button + summoned icon row, modern
+      pets' "no HUD until asked"), cut the screen to: pet as the hero, Food/Fun **hearts**,
+      one pulsing **call** badge (from the new pure `pet_need()`), **3 big thumb-sized
+      buttons** + a gear that summons the icon menu. Removed the 5-bar row, the 6-button bar,
+      and sentence captions. `lvgl-ui` skill updated with `references/screens.md`.

@@ -287,7 +287,45 @@ static void scenario_persistence(void)
     CHECK(loaded.updated_at == T0 + EGG_HATCH_S + 3600, "loaded pet advances");
 }
 
-/* -- 10. the UI predicate matches the actions exactly ----------------------- */
+/* -- 10. the single "call": pet_need() -------------------------------------- */
+static void scenario_need(void)
+{
+    printf("[need] one call, most urgent first\n");
+    pet_t p;
+    pet_new(&p, T0);
+    CHECK(pet_need(&p) == PET_NEED_NONE, "an egg asks for nothing");
+    pet_apply(&p, T0 + EGG_HATCH_S + 1);
+    CHECK(pet_need(&p) == PET_NEED_NONE, "a full baby is fine");
+
+    // starve it (keeping it clean) -> FOOD
+    pet_t q;
+    pet_new(&q, T0);
+    pet_apply(&q, T0 + EGG_HATCH_S + 1);
+    for (int64_t t = T0 + EGG_HATCH_S + 2; t < T0 + EGG_HATCH_S + 16 * H; t += 60) {
+        pet_apply(&q, t);
+        q.dirty = 0;
+        if (pet_stat(&q, PET_STAT_FULLNESS) < CRITICAL_BELOW) break;
+    }
+    CHECK(pet_need(&q) == PET_NEED_FOOD, "a hungry pet calls for food (got %s)",
+          pet_need_name(pet_need(&q)));
+
+    pet_t d;
+    pet_new(&d, T0);
+    pet_apply(&d, T0 + EGG_HATCH_S + 1);
+    d.dirty = 1;
+    d.stats_u[PET_STAT_FULLNESS] = 0;
+    CHECK(pet_need(&d) == PET_NEED_CLEAN, "clean outranks food when both apply");
+    d.stats_u[PET_STAT_HEALTH] = 0;
+    CHECK(pet_need(&d) == PET_NEED_MED, "sickness outranks everything");
+
+    pet_t a;
+    pet_new(&a, T0);
+    pet_apply(&a, T0 + EGG_HATCH_S + 1);
+    pet_act(&a, PET_ACT_LIGHTS, T0 + EGG_HATCH_S + 2);
+    CHECK(pet_need(&a) == PET_NEED_NONE, "a sleeping pet is not nagged");
+}
+
+/* -- 11. the UI predicate matches the actions exactly ----------------------- */
 static void check_parity(const pet_t *p, int64_t now, const char *where)
 {
     pet_t base = *p;
@@ -346,6 +384,7 @@ int main(void)
     scenario_care_quality();
     scenario_catchup();
     scenario_persistence();
+    scenario_need();
     scenario_action_parity();
     printf("\n%s (%d checks, %d failure%s)\n", failures ? "FAILED" : "OK", checks, failures,
            failures == 1 ? "" : "s");

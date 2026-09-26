@@ -31,6 +31,9 @@ device UI (the `tamagotchi` example) and are meant to be copied and adapted.
 
 ## Workflow
 
+0. If the screen has a character/companion at its centre, read
+   `references/screens.md` first — hero layout, summoned controls, coarse needs,
+   one "call". It changes everything below.
 1. Read `references/tokens.md` and set up `ui_theme.h` for the project's panel
    (dark surfaces on AMOLED black; lighter neutrals on LCD).
 2. Copy `assets/templates/action_button.c` and wire `make_action_button()` — see
@@ -75,6 +78,8 @@ device UI (the `tamagotchi` example) and are meant to be copied and adapted.
 - `references/buttons.md` — button anatomy, styles, state wiring.
 - `references/icons.md` — icon strategies and pitfalls.
 - `references/taste.md` — spacing, hierarchy, and the pre-ship checklist.
+- `references/screens.md` — the hero/companion screen: zones, three-button rule,
+  summoned menu, hearts, the one "call".
 - `references/motifs.md` — capsule bars, candy tiles, speech bubble, pedestal, toast pill.
 - `assets/templates/ui_theme.h` — drop-in token header.
 - `assets/templates/action_button.c` — the component.

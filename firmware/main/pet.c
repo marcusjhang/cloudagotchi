@@ -300,6 +300,30 @@ bool pet_action_enabled(const pet_t *p, pet_action_t a)
     }
 }
 
+// One need, most urgent first. Asleep/egg/dead are not "needs" to nag about.
+pet_need_t pet_need(const pet_t *p)
+{
+    if (p->stage == PET_STAGE_EGG || p->stage == PET_STAGE_DEAD || p->asleep) {
+        return PET_NEED_NONE;
+    }
+    if (pet_stat(p, PET_STAT_HEALTH) < SICK_BELOW) return PET_NEED_MED;
+    if (p->dirty) return PET_NEED_CLEAN;
+    if (pet_stat(p, PET_STAT_FULLNESS) < CRITICAL_BELOW) return PET_NEED_FOOD;
+    if (pet_stat(p, PET_STAT_HAPPINESS) < CRITICAL_BELOW) return PET_NEED_FUN;
+    return PET_NEED_NONE;
+}
+
+const char *pet_need_name(pet_need_t n)
+{
+    switch (n) {
+    case PET_NEED_MED:   return "sick";
+    case PET_NEED_CLEAN: return "clean";
+    case PET_NEED_FOOD:  return "food";
+    case PET_NEED_FUN:   return "fun";
+    default:             return "ok";
+    }
+}
+
 pet_face_t pet_face(const pet_t *p, int64_t now)
 {
     if (p->stage == PET_STAGE_DEAD) return PET_FACE_DEAD;

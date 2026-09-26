@@ -19,6 +19,7 @@ npx skills add marcusjhang/lvgl-ui@lvgl-ui
 
 ```
 SKILL.md                     the skill entry point
+references/screens.md        hero/companion screen: zones, summoned controls, one call
 references/tokens.md         colour scale, light/dark panels, geometry
 references/buttons.md        button anatomy, styles, state wiring
 references/icons.md          icon strategies and pitfalls

@@ -2,21 +2,21 @@
  * The screen (368 x 448). Renders whatever snapshot the game last pushed; turns
  * touches into pet_action_t via the callback. Knows nothing about the rules.
  *
- * Reading order:
- *   layout constants -> styles -> face/caption -> render -> input -> settings
- *   -> build_* helpers -> pet_ui_start (which just calls the builders)
+ * Design (from the Tamagotchi UI research): the pet IS the screen. At rest there
+ * are only three big thumb-sized buttons and one need "call"; the full icon menu
+ * is summoned behind the gear, like the original's A-button icon grid.
  *
- *   status strip   "teen · 3d 4h"  (left)        "14:07 87%" (right)
- *   stat row       FOOD FUN ZZZ CLEAN HP   (five bars)
- *   face           one image widget, swapped per state (+ poop blob)
- *   caption        "hungry" / "zzz" / "nom nom" ...
- *   toast          "not hungry" for blocked actions
- *   action bar     FEED PLAY LIGHT CLEAN MED INFO  (icon + caption)
- *   overlays       INFO (tap) and SETTINGS (hold INFO)
+ *   top      status: "teen · 3d 4h" (left)   "14:07 87%" (right)   [adult info]
+ *   needs    Food ♥♥♥♡   Fun ♥♥♥♡     (four hearts each, like the original)
+ *   middle   the pet on a soft pedestal, with a pulsing call badge when it needs
+ *            something; tap the badge to fix it
+ *   bottom   FEED  PLAY  CLEAN  (three big rounded tiles)        gear (menu)
+ *   overlays MENU (icon grid: Feed/Snack/Lights/Clean/Med/Meter/Settings/Close),
+ *            METER (adult stats) and SETTINGS, both summoned
  *
  * Touch on this glass lands 15-25 px below where you aim (field guide), so every
- * target gets an extended click area (EXT_CLICK_PX) and nothing is under 40 px
- * tall. Every touch is logged at INFO - that log is how those numbers were found.
+ * target gets an extended click area (EXT_CLICK_PX) and nothing is under 48 px.
+ * Every touch is logged at INFO - that log is how those numbers were found.
  */
 #include "pet_ui.h"
 
@@ -38,47 +38,62 @@ static const char *TAG = "pet_ui";
 /* ---------- layout: every position lives here ----------------------------- */
 #define SCR_W            368
 #define SCR_H            448
-#define PAD_H            16                  // left/right margin
+#define PAD_H            16
 #define STATUS_Y         10
-#define STAT_COL_W       60
-#define STAT_COL_STEP    68                  // column width + gap
-#define STAT_LABEL_Y     34
-#define STAT_BAR_Y       56
-#define STAT_BAR_H       10
-#define FACE_Y           (-14)
-#define CAPTION_Y        88
-#define TOAST_BOTTOM     (-96)
-#define BTN_ROW_X        7
-#define BTN_ROW_STEP     60
-#define BTN_ROW_BOTTOM   (-12)
-#define OVERLAY_Y        (-20)
-#define INFO_W           300
-#define INFO_H           250
-#define SET_W            330
-#define SET_H            300
-#define SBTN_H           44
+
+#define NEEDS_LABEL_X    16
+#define NEEDS_HEARTS_X   62
+#define NEEDS_HEART_DX   30
+#define NEEDS_ROW1_Y     36
+#define NEEDS_ROW2_Y     72
+
+#define FACE_Y           (-8)
+#define GROUND_DY        70
+#define BADGE_DX         8
+#define BADGE_DY         (-8)
+
+#define BIG_W            94
+#define BIG_H            80
+#define BIG_X0           6
+#define BIG_DX           100
+#define BIG_BOTTOM       (-14)
+#define GEAR_W           44
+#define GEAR_BOTTOM      (-32)
+
+#define TOAST_BOTTOM     (-108)
+#define EXT_CLICK_PX     20
+
+#define HEARTS           4
 
 /* timers */
 #define BLINK_PERIOD_MS  4200
 #define BLINK_MS         120
 #define TOAST_MS         1500
 #define REPAINT_MS       15000
-#define EXT_CLICK_PX     20
+#define PULSE_MS         600
 
 static pet_ui_action_cb_t s_on_action;
 
 static lv_obj_t *s_status;
 static lv_obj_t *s_clock;
-static lv_obj_t *s_bars[PET_STAT_COUNT];
+static lv_obj_t *s_hearts[2][HEARTS];   // 0 = food, 1 = fun
 static lv_obj_t *s_ground;
 static lv_obj_t *s_face;
 static lv_obj_t *s_poop;
-static lv_obj_t *s_caption_box;
-static lv_obj_t *s_caption;
+static lv_obj_t *s_badge;
+static lv_obj_t *s_badge_icon;
 static lv_obj_t *s_toast_box;
 static lv_obj_t *s_toast;
-static lv_obj_t *s_info;
-static lv_obj_t *s_info_text;
+
+static lv_obj_t *s_big[3];              // Feed, Play, Clean
+static const pet_action_t BIG_ACT[3] = {PET_ACT_FEED_MEAL, PET_ACT_PLAY, PET_ACT_CLEAN};
+static const char *const BIG_ICON[3] = {LV_SYMBOL_PLUS, LV_SYMBOL_PLAY, LV_SYMBOL_TRASH};
+static const char *const BIG_TEXT[3] = {"Feed", "Play", "Clean"};
+static const uint32_t BIG_COLOR[3] = {0x9CC959, 0xFF6392, 0x5DA9E9};
+
+static lv_obj_t *s_menu;
+static lv_obj_t *s_meter;
+static lv_obj_t *s_meter_text;
 static lv_obj_t *s_settings;
 static lv_obj_t *s_settings_time;
 static lv_timer_t *s_toast_timer;
@@ -86,62 +101,49 @@ static lv_timer_t *s_toast_timer;
 static pet_ui_snapshot_t s_snap;
 static bool s_have_snap;
 static const lv_image_dsc_t *s_shown;
+static bool s_badge_on;
 
-static const struct {
-    const char *label;
-    uint32_t color;
-} STAT_STYLE[PET_STAT_COUNT] = {
-    [PET_STAT_FULLNESS]  = {"Food",  0x9CC959},
-    [PET_STAT_HAPPINESS] = {"Fun",   0xFF6392},
-    [PET_STAT_ENERGY]    = {"Nap",   0x2EC4B6},
-    [PET_STAT_HYGIENE]   = {"Clean", 0x5DA9E9},
-    [PET_STAT_HEALTH]    = {"HP",    0xFF5A5F},
-};
-
-/* Action bar: 0..4 are pet actions, 5 is INFO. Icon + caption + icon colour. */
-static const struct {
-    const char *icon;
-    const char *text;
-    pet_action_t act;
-    uint32_t color;
-} BTN[6] = {
-    {LV_SYMBOL_PLUS,     "Feed",  PET_ACT_FEED_MEAL, 0x9CC959},
-    {LV_SYMBOL_PLAY,     "Play",  PET_ACT_PLAY,      0xFF6392},
-    {LV_SYMBOL_EYE_OPEN, "Light", PET_ACT_LIGHTS,    0xFFD166},
-    {LV_SYMBOL_TRASH,    "Clean", PET_ACT_CLEAN,     0x5DA9E9},
-    {LV_SYMBOL_TINT,     "Med",   PET_ACT_MEDICINE,  0xFF5A5F},
-    {LV_SYMBOL_LIST,     "Info",  PET_ACT_COUNT,     0x9AA9B8},  // count = not an action
-};
-
-static lv_obj_t *s_btn[6];
-static lv_obj_t *s_btn_icon[6];
-
-/* ---------- button styles (created once) ---------------------------------- */
-
-static lv_style_t st_btn_base, st_btn_pressed, st_btn_off, st_btn_on;
-
-static void btn_styles_init(void)
+/* stat → 0..HEARTS, rounded to the nearest heart */
+static int hearts_of(int stat)
 {
-    lv_style_init(&st_btn_base);
-    lv_style_set_bg_color(&st_btn_base, UI_SURFACE);
-    lv_style_set_bg_opa(&st_btn_base, LV_OPA_COVER);
-    lv_style_set_radius(&st_btn_base, UI_RADIUS);
-    lv_style_set_border_width(&st_btn_base, 1);
-    lv_style_set_border_color(&st_btn_base, UI_BORDER);
-    lv_style_set_shadow_width(&st_btn_base, 0);
-    lv_style_set_pad_all(&st_btn_base, 2);
+    const int h = (stat * HEARTS + 50) / 100;
+    return h < 0 ? 0 : h > HEARTS ? HEARTS : h;
+}
 
-    lv_style_init(&st_btn_pressed);
-    lv_style_set_bg_color(&st_btn_pressed, UI_SURFACE_PRESSED);
-    lv_style_set_translate_y(&st_btn_pressed, 1);
+/* ---------- styles (created once) ----------------------------------------- */
 
-    lv_style_init(&st_btn_off);
-    lv_style_set_bg_color(&st_btn_off, UI_SURFACE_OFF);
-    lv_style_set_opa(&st_btn_off, LV_OPA_50);
+static lv_style_t st_tile, st_tile_pressed, st_tile_off, st_tile_on;
 
-    lv_style_init(&st_btn_on);  // checked: lit border (e.g. LIGHT while asleep)
-    lv_style_set_border_color(&st_btn_on, UI_ACCENT);
-    lv_style_set_bg_color(&st_btn_on, lv_color_mix(UI_ACCENT, UI_SURFACE, 40));
+static void tile_styles_init(void)
+{
+    lv_style_init(&st_tile);
+    lv_style_set_bg_color(&st_tile, UI_SURFACE);
+    lv_style_set_bg_opa(&st_tile, LV_OPA_COVER);
+    lv_style_set_radius(&st_tile, UI_RADIUS_LG);
+    lv_style_set_border_width(&st_tile, 1);
+    lv_style_set_border_color(&st_tile, UI_BORDER);
+    lv_style_set_shadow_width(&st_tile, 0);
+    lv_style_set_pad_all(&st_tile, 2);
+
+    lv_style_init(&st_tile_pressed);
+    lv_style_set_bg_color(&st_tile_pressed, UI_SURFACE_PRESSED);
+    lv_style_set_translate_y(&st_tile_pressed, 2);
+
+    lv_style_init(&st_tile_off);
+    lv_style_set_bg_color(&st_tile_off, UI_SURFACE_OFF);
+    lv_style_set_opa(&st_tile_off, LV_OPA_50);
+
+    lv_style_init(&st_tile_on);
+    lv_style_set_border_color(&st_tile_on, UI_ACCENT);
+    lv_style_set_bg_color(&st_tile_on, lv_color_mix(UI_ACCENT, UI_SURFACE, 40));
+}
+
+static void apply_tile_style(lv_obj_t *obj)
+{
+    lv_obj_add_style(obj, &st_tile, 0);
+    lv_obj_add_style(obj, &st_tile_pressed, LV_STATE_PRESSED);
+    lv_obj_add_style(obj, &st_tile_off, LV_STATE_DISABLED);
+    lv_obj_add_style(obj, &st_tile_on, LV_STATE_CHECKED);
 }
 
 /* ---------- face selection ------------------------------------------------ */
@@ -171,35 +173,6 @@ static bool blinkable(pet_face_t f)
            f == PET_FACE_DIRTY || f == PET_FACE_EGG;
 }
 
-static const char *caption_for(const pet_ui_snapshot_t *s)
-{
-    switch (s->face) {
-    case PET_FACE_EGG:      return "an egg. wait for it";
-    case PET_FACE_EATING:   return "nom nom";
-    case PET_FACE_PLAYING:  return "wheee";
-    case PET_FACE_STARTLED: return "!!";
-    case PET_FACE_SLEEPING: return "zzz";
-    case PET_FACE_SICK:     return "sick - needs MED";
-    case PET_FACE_DIRTY:    return "clean me";
-    case PET_FACE_DEAD:     return "R.I.P.  (hold face: new egg)";
-    case PET_FACE_SAD: {
-        // Name the lowest core need so the owner knows which button to press.
-        pet_stat_t worst = PET_STAT_FULLNESS;
-        for (int i = 0; i < PET_STAT_HEALTH; i++) {
-            if (i == PET_STAT_ENERGY) continue;
-            if (s->stats[i] < s->stats[worst]) worst = (pet_stat_t)i;
-        }
-        switch (worst) {
-        case PET_STAT_HAPPINESS: return "bored";
-        case PET_STAT_HYGIENE:   return "stinky";
-        default:                 return "hungry";
-        }
-    }
-    case PET_FACE_HAPPY:    return "";
-    default:                return "";
-    }
-}
-
 // Swap the sprite and invalidate: a dropped QSPI transfer can leave slivers
 // of the previous sprite, and a plain set_src only repaints the diff.
 static void show_face(const lv_image_dsc_t *src)
@@ -226,6 +199,15 @@ static void blink_cb(lv_timer_t *t)
     lv_timer_create(blink_open_cb, BLINK_MS, NULL);
 }
 
+static void pulse_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (s_badge_on && s_badge) {
+        lv_obj_set_style_opa(s_badge, lv_obj_get_style_opa(s_badge, 0) > LV_OPA_70 ? LV_OPA_50
+                                                                                 : LV_OPA_COVER, 0);
+    }
+}
+
 static void repaint_cb(lv_timer_t *t)
 {
     (void)t;
@@ -239,7 +221,7 @@ static void toast_hide_cb(lv_timer_t *t)
     s_toast_timer = NULL;
 }
 
-/* ---------- rendering a snapshot ------------------------------------------- */
+/* ---------- formatting helpers --------------------------------------------- */
 
 static void fmt_age(char *buf, size_t n, uint32_t s)
 {
@@ -283,64 +265,111 @@ static const char *power_line(const pet_ui_snapshot_t *s, char *buf, size_t n)
     return buf;
 }
 
-// Must hold the display lock.
-static void render_settings_clock(void)
+/* ---------- the "call" badge ----------------------------------------------- */
+
+static void badge_icon_for(pet_need_t n, const char **icon, uint32_t *color)
 {
-    if (!s_settings || lv_obj_is_hidden(s_settings)) return;
-    if (!s_have_snap || !s_snap.clock_ok) {
-        lv_label_set_text(s_settings_time, "--:--");
-        return;
+    switch (n) {
+    case PET_NEED_MED:   *icon = LV_SYMBOL_WARNING; *color = 0xFF5A5F; break;
+    case PET_NEED_CLEAN: *icon = LV_SYMBOL_TRASH;   *color = 0x5DA9E9; break;
+    case PET_NEED_FOOD:  *icon = LV_SYMBOL_PLUS;    *color = 0x9CC959; break;
+    case PET_NEED_FUN:   *icon = LV_SYMBOL_PLAY;    *color = 0xFF6392; break;
+    default:             *icon = LV_SYMBOL_OK;      *color = 0x2EC4B6; break;
     }
-    struct tm lt;
-    const time_t t = (time_t)s_snap.clock_s;
-    localtime_r(&t, &lt);
-    char hm[8];
-    strftime(hm, sizeof(hm), "%H:%M", &lt);
-    lv_label_set_text(s_settings_time, hm);
+}
+
+static void badge_cb(lv_event_t *e)
+{
+    (void)e;
+    if (!s_have_snap) return;
+    switch (s_snap.need) {  // tap the call to do the thing it is asking for
+    case PET_NEED_MED:   s_on_action(PET_ACT_MEDICINE);   break;
+    case PET_NEED_CLEAN: s_on_action(PET_ACT_CLEAN);      break;
+    case PET_NEED_FOOD:  s_on_action(PET_ACT_FEED_MEAL);  break;
+    case PET_NEED_FUN:   s_on_action(PET_ACT_PLAY);       break;
+    default: break;
+    }
+}
+
+/* ---------- rendering a snapshot ------------------------------------------- */
+
+static void render_needs(const pet_ui_snapshot_t *s)
+{
+    const int hearts[2] = {hearts_of(s->stats[PET_STAT_FULLNESS]),
+                           hearts_of(s->stats[PET_STAT_HAPPINESS])};
+    for (int g = 0; g < 2; g++) {
+        for (int i = 0; i < HEARTS; i++) {
+            lv_obj_set_style_opa(s_hearts[g][i], i < hearts[g] ? LV_OPA_COVER : LV_OPA_20, 0);
+        }
+    }
+}
+
+static void render_call(const pet_ui_snapshot_t *s)
+{
+    const bool on = s->need != PET_NEED_NONE && s->stage != PET_STAGE_DEAD;
+    s_badge_on = on;
+    lv_obj_set_hidden(s_badge, !on);
+    if (!on) return;
+
+    const char *icon;
+    uint32_t color;
+    badge_icon_for(s->need, &icon, &color);
+    lv_label_set_text(s_badge_icon, icon);
+    lv_obj_set_style_bg_color(s_badge, lv_color_hex(color), 0);
+    lv_obj_set_style_opa(s_badge, LV_OPA_COVER, 0);
+}
+
+static void render_bottom(const pet_ui_snapshot_t *s)
+{
+    for (int i = 0; i < 3; i++) {
+        lv_obj_set_state(s_big[i], LV_STATE_DISABLED, !s->enabled[BIG_ACT[i]]);
+    }
+    // highlight the button the call is pointing at (no hidden gestures for kids)
+    lv_obj_set_state(s_big[0], LV_STATE_CHECKED, s->need == PET_NEED_FOOD);
+    lv_obj_set_state(s_big[1], LV_STATE_CHECKED, s->need == PET_NEED_FUN);
+    lv_obj_set_state(s_big[2], LV_STATE_CHECKED, s->need == PET_NEED_CLEAN);
 }
 
 // Must hold the display lock.
 static void render(const pet_ui_snapshot_t *s)
 {
-    char age[24], line[64];
+    char age[24], line[64], clock[32];
     fmt_age(age, sizeof(age), s->age_s);
     snprintf(line, sizeof(line), "%s  ·  %s", pet_stage_name(s->stage), age);
     lv_label_set_text(s_status, line);
-
-    char clock[32];
     fmt_clock(clock, sizeof(clock), s);
     lv_label_set_text(s_clock, clock);
 
-    // Action bar: grey out what the pet would refuse; LIGHT lit while asleep.
-    for (int i = 0; i < 5; i++) {
-        lv_obj_set_state(s_btn[i], LV_STATE_DISABLED, !s->enabled[BTN[i].act]);
-    }
-    lv_label_set_text(s_btn_icon[2], s->asleep ? LV_SYMBOL_EYE_CLOSE : LV_SYMBOL_EYE_OPEN);
-    lv_obj_set_state(s_btn[2], LV_STATE_CHECKED, s->asleep);
-
-    for (int i = 0; i < PET_STAT_COUNT; i++) {
-        lv_bar_set_value(s_bars[i], s->stats[i], LV_ANIM_OFF);
-    }
+    render_needs(s);
+    render_call(s);
+    render_bottom(s);
 
     show_face(face_for(s->face, false));
     lv_obj_set_hidden(s_poop, !s->dirty);
-    const char *cap = caption_for(s);
-    lv_label_set_text(s_caption, cap);
-    lv_obj_set_hidden(s_caption_box, cap[0] == '\0');
 
-    if (!lv_obj_is_hidden(s_info)) {
+    if (!lv_obj_is_hidden(s_meter)) {
         char power[48];
-        power_line(s, power, sizeof(power));  // keep the bound on power for -Wformat-truncation
+        power_line(s, power, sizeof(power));
         char info[224];
         snprintf(info, sizeof(info),
                  "stage      %s\nage        %s\nweight     %u\nmistakes   %u\n"
-                 "power      %s\nboots      %lu\n\n"
-                 "hold FEED for a snack\nhold the face when dead",
+                 "power      %s\nboots      %lu",
                  pet_stage_name(s->stage), age, s->weight, s->mistakes,
                  power, (unsigned long)s->boots);
-        lv_label_set_text(s_info_text, info);
+        lv_label_set_text(s_meter_text, info);
     }
-    render_settings_clock();
+
+    if (!lv_obj_is_hidden(s_settings) && lv_obj_is_valid(s_settings_time)) {
+        struct tm lt;
+        const time_t t = (time_t)s->clock_s;
+        if (s->clock_ok) {
+            localtime_r(&t, &lt);
+            strftime(clock, sizeof(clock), "%H:%M", &lt);
+        } else {
+            snprintf(clock, sizeof(clock), "--:--");
+        }
+        lv_label_set_text(s_settings_time, clock);
+    }
 }
 
 void pet_ui_update(const pet_ui_snapshot_t *s)
@@ -381,32 +410,49 @@ static void action_cb(lv_event_t *e)
     if (s_on_action) s_on_action(a);
 }
 
-static void feed_cb(lv_event_t *e)
-{
-    // Short tap = meal, long press = snack. LVGL sends LONG_PRESSED at
-    // long_press_time and SHORT_CLICKED only if released before it.
-    const lv_event_code_t code = lv_event_get_code(e);
-    if (code == LV_EVENT_SHORT_CLICKED)     s_on_action(PET_ACT_FEED_MEAL);
-    else if (code == LV_EVENT_LONG_PRESSED) s_on_action(PET_ACT_FEED_SNACK);
-}
-
 static void face_cb(lv_event_t *e)
 {
-    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) s_on_action(PET_ACT_NEW_EGG);
+    // A tap on a dead pet starts a new egg; nothing else is hidden behind the pet.
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED && s_have_snap &&
+        s_snap.stage == PET_STAGE_DEAD && s_on_action) {
+        s_on_action(PET_ACT_NEW_EGG);
+    }
 }
 
-static void info_cb(lv_event_t *e)
+static void menu_close_cb(lv_event_t *e)
 {
     (void)e;
-    const bool hidden = lv_obj_is_hidden(s_info);
-    lv_obj_set_hidden(s_info, !hidden);
-    if (hidden && s_have_snap) render(&s_snap);
+    lv_obj_set_hidden(s_menu, true);
 }
 
-/* ---------- settings (long-press INFO) ------------------------------------ */
+static void menu_open_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_set_hidden(s_menu, false);
+}
 
-static const int BRIGHT_STEPS[] = {100, 60, 30};
-static int s_bright_idx;
+static void menu_act_cb(lv_event_t *e)
+{
+    const pet_action_t a = (pet_action_t)(uintptr_t)lv_event_get_user_data(e);
+    lv_obj_set_hidden(s_menu, true);
+    if (s_on_action) s_on_action(a);
+}
+
+static void meter_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_set_hidden(s_menu, true);
+    lv_obj_set_hidden(s_meter, !lv_obj_is_hidden(s_meter));
+    if (!lv_obj_is_hidden(s_meter) && s_have_snap) render(&s_snap);
+}
+
+static void settings_open_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_set_hidden(s_menu, true);
+    lv_obj_set_hidden(s_settings, false);
+    if (s_have_snap) render(&s_snap);
+}
 
 static void settings_close_cb(lv_event_t *e)
 {
@@ -424,10 +470,12 @@ static void settings_time_cb(lv_event_t *e)
 static void settings_bright_cb(lv_event_t *e)
 {
     (void)e;
-    s_bright_idx = (s_bright_idx + 1) % (int)(sizeof(BRIGHT_STEPS) / sizeof(BRIGHT_STEPS[0]));
-    power_set_awake_brightness(BRIGHT_STEPS[s_bright_idx]);
+    static const int steps[] = {100, 60, 30};
+    static int idx;
+    idx = (idx + 1) % (int)(sizeof(steps) / sizeof(steps[0]));
+    power_set_awake_brightness(steps[idx]);
     char msg[32];
-    snprintf(msg, sizeof(msg), "brightness %d%%", BRIGHT_STEPS[s_bright_idx]);
+    snprintf(msg, sizeof(msg), "brightness %d%%", steps[idx]);
     pet_ui_toast(msg);
 }
 
@@ -437,13 +485,6 @@ static void settings_reset_cb(lv_event_t *e)
     game_reset();
     lv_obj_set_hidden(s_settings, true);
     pet_ui_toast("new egg");
-}
-
-static void settings_open_cb(lv_event_t *e)
-{
-    (void)e;
-    lv_obj_set_hidden(s_settings, false);
-    if (s_have_snap) render(&s_snap);
 }
 
 /* ---------- small widget helpers ------------------------------------------- */
@@ -456,20 +497,80 @@ static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, lv_color_t 
     return label;
 }
 
-// A compact secondary button for the overlays, positioned by hand.
-static lv_obj_t *make_sbtn(lv_obj_t *parent, const char *text, int x, int y, int w)
+static lv_obj_t *make_pill(lv_obj_t *parent, int w, int h, lv_color_t bg)
+{
+    lv_obj_t *box = lv_obj_create(parent);
+    lv_obj_set_size(box, w, h);
+    lv_obj_set_style_bg_color(box, bg, 0);
+    lv_obj_set_style_radius(box, h / 2, 0);
+    lv_obj_set_style_border_width(box, 0, 0);
+    lv_obj_set_style_pad_all(box, 0, 0);
+    lv_obj_set_scrollable(box, false);
+    return box;
+}
+
+// A big bottom button: rounded tile, top icon, bottom caption.
+static lv_obj_t *make_big_button(lv_obj_t *parent, int i)
 {
     lv_obj_t *btn = lv_button_create(parent);
-    lv_obj_set_size(btn, w, SBTN_H);
-    lv_obj_set_pos(btn, x, y);
-    lv_obj_add_style(btn, &st_btn_base, 0);
-    lv_obj_add_style(btn, &st_btn_pressed, LV_STATE_PRESSED);
+    lv_obj_set_size(btn, BIG_W, BIG_H);
+    lv_obj_set_pos(btn, BIG_X0 + i * BIG_DX, SCR_H + BIG_BOTTOM - BIG_H);
     lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
+    apply_tile_style(btn);
+
+    lv_obj_t *icon = make_label(btn, &lv_font_montserrat_24, lv_color_hex(BIG_COLOR[i]));
+    lv_label_set_text(icon, BIG_ICON[i]);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 6);
+
+    lv_obj_t *text = make_label(btn, &lv_font_montserrat_14, UI_TEXT);
+    lv_label_set_text(text, BIG_TEXT[i]);
+    lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -8);
+
+    lv_obj_add_event_cb(btn, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)BIG_ACT[i]);
+    s_big[i] = btn;
+    return btn;
+}
+
+// A compact text button for the settings overlay, positioned by hand.
+static lv_obj_t *make_sbtn(lv_obj_t *parent, const char *text, int x, int y, int w,
+                           lv_event_cb_t cb, void *user, bool hold)
+{
+    lv_obj_t *btn = lv_button_create(parent);
+    lv_obj_set_size(btn, w, 40);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
+    apply_tile_style(btn);
+    lv_obj_set_style_radius(btn, UI_RADIUS, 0);
 
     lv_obj_t *label = make_label(btn, &lv_font_montserrat_14, UI_TEXT);
     lv_label_set_text(label, text);
     lv_obj_center(label);
+    lv_obj_add_event_cb(btn, cb, hold ? LV_EVENT_LONG_PRESSED : LV_EVENT_CLICKED, user);
     return btn;
+}
+
+// A tile in the summoned menu grid.
+static lv_obj_t *make_menu_tile(lv_obj_t *parent, int x, int y, const char *icon,
+                                const char *text, uint32_t color, lv_event_cb_t cb,
+                                void *user, bool hold)
+{
+    lv_obj_t *tile = lv_button_create(parent);
+    lv_obj_set_size(tile, 76, 76);
+    lv_obj_set_pos(tile, x, y);
+    lv_obj_set_ext_click_area(tile, EXT_CLICK_PX);
+    apply_tile_style(tile);
+
+    if (icon) {
+        lv_obj_t *ic = make_label(tile, &lv_font_montserrat_24, lv_color_hex(color));
+        lv_label_set_text(ic, icon);
+        lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 6);
+    }
+    lv_obj_t *lb = make_label(tile, &lv_font_montserrat_14, UI_TEXT_DIM);
+    lv_label_set_text(lb, text);
+    lv_obj_align(lb, LV_ALIGN_BOTTOM_MID, 0, -5);
+
+    lv_obj_add_event_cb(tile, cb, hold ? LV_EVENT_LONG_PRESSED : LV_EVENT_CLICKED, user);
+    return tile;
 }
 
 /* ---------- builders: one per region of the screen ------------------------- */
@@ -486,27 +587,20 @@ static void build_status_bar(lv_obj_t *scr)
     lv_label_set_text(s_clock, "");
 }
 
-static void build_stat_row(lv_obj_t *scr)
+static void build_needs(lv_obj_t *scr)
 {
-    for (int i = 0; i < PET_STAT_COUNT; i++) {
-        const int x = PAD_H + i * STAT_COL_STEP;
-
-        lv_obj_t *label = make_label(scr, &lv_font_montserrat_14,
-                                     lv_color_hex(STAT_STYLE[i].color));
-        lv_label_set_text(label, STAT_STYLE[i].label);
-        lv_obj_set_width(label, STAT_COL_W);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_pos(label, x, STAT_LABEL_Y);
-
-        lv_obj_t *bar = lv_bar_create(scr);
-        lv_obj_set_size(bar, STAT_COL_W, UI_BAR_H);
-        lv_obj_set_pos(bar, x, STAT_BAR_Y);
-        lv_bar_set_range(bar, 0, 100);
-        lv_obj_set_style_bg_color(bar, UI_TRACK, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(bar, lv_color_hex(STAT_STYLE[i].color), LV_PART_INDICATOR);
-        lv_obj_set_style_radius(bar, UI_BAR_H / 2, LV_PART_MAIN);
-        lv_obj_set_style_radius(bar, UI_BAR_H / 2, LV_PART_INDICATOR);
-        s_bars[i] = bar;
+    static const char *const names[2] = {"Food", "Fun"};
+    for (int g = 0; g < 2; g++) {
+        const int y = g == 0 ? NEEDS_ROW1_Y : NEEDS_ROW2_Y;
+        lv_obj_t *lb = make_label(scr, &lv_font_montserrat_14, UI_TEXT_DIM);
+        lv_label_set_text(lb, names[g]);
+        lv_obj_set_pos(lb, NEEDS_LABEL_X, y + 6);
+        for (int i = 0; i < HEARTS; i++) {
+            lv_obj_t *h = lv_image_create(scr);
+            lv_image_set_src(h, &icon_heart);
+            lv_obj_set_pos(h, NEEDS_HEARTS_X + i * NEEDS_HEART_DX, y);
+            s_hearts[g][i] = h;
+        }
     }
 }
 
@@ -518,13 +612,14 @@ static void build_face(lv_obj_t *scr)
     lv_obj_set_style_radius(s_ground, 14, 0);
     lv_obj_set_style_bg_color(s_ground, UI_GROUND, 0);
     lv_obj_set_style_border_width(s_ground, 0, 0);
-    lv_obj_align(s_ground, LV_ALIGN_CENTER, 0, FACE_Y + 70);
+    lv_obj_set_scrollable(s_ground, false);
+    lv_obj_align(s_ground, LV_ALIGN_CENTER, 0, FACE_Y + GROUND_DY);
 
     s_face = lv_image_create(scr);
     lv_obj_align(s_face, LV_ALIGN_CENTER, 0, FACE_Y);
     lv_obj_set_clickable(s_face, true);
     lv_obj_set_ext_click_area(s_face, EXT_CLICK_PX);
-    lv_obj_add_event_cb(s_face, face_cb, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_add_event_cb(s_face, face_cb, LV_EVENT_CLICKED, NULL);
     show_face(&face_neutral);
 
     // poop: a brown blob by its feet (placeholder art)
@@ -535,34 +630,24 @@ static void build_face(lv_obj_t *scr)
     lv_obj_set_style_border_width(s_poop, 0, 0);
     lv_obj_align_to(s_poop, s_face, LV_ALIGN_BOTTOM_RIGHT, 34, 6);
     lv_obj_set_hidden(s_poop, true);
+
+    // the call badge, over the pet's shoulder; tap it to do the needed action
+    s_badge = lv_button_create(scr);
+    lv_obj_set_size(s_badge, 48, 48);
+    lv_obj_set_style_radius(s_badge, 24, 0);
+    lv_obj_set_style_border_width(s_badge, 2, 0);
+    lv_obj_set_style_border_color(s_badge, UI_BG, 0);
+    lv_obj_set_style_shadow_width(s_badge, 0, 0);
+    lv_obj_set_ext_click_area(s_badge, EXT_CLICK_PX);
+    lv_obj_align_to(s_badge, s_face, LV_ALIGN_TOP_RIGHT, BADGE_DX, BADGE_DY);
+    s_badge_icon = make_label(s_badge, &lv_font_montserrat_24, UI_BG);
+    lv_obj_center(s_badge_icon);
+    lv_obj_add_event_cb(s_badge, badge_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_hidden(s_badge, true);
 }
 
-static lv_obj_t *make_pill(lv_obj_t *parent, int w, int h, lv_color_t bg)
+static void build_toast(lv_obj_t *scr)
 {
-    lv_obj_t *box = lv_obj_create(parent);
-    lv_obj_set_size(box, w, h);
-    lv_obj_set_style_bg_color(box, bg, 0);
-    lv_obj_set_style_radius(box, h / 2, 0);
-    lv_obj_set_style_border_width(box, 0, 0);
-    lv_obj_set_style_pad_all(box, 0, 0);
-    lv_obj_set_scrollable(box, false);
-    return box;
-}
-
-static void build_caption_and_toast(lv_obj_t *scr)
-{
-    // caption as a soft speech bubble under the pet
-    s_caption_box = make_pill(scr, 280, 38, UI_BUBBLE);
-    lv_obj_set_style_radius(s_caption_box, 14, 0);
-    lv_obj_align(s_caption_box, LV_ALIGN_CENTER, 0, CAPTION_Y);
-    s_caption = make_label(s_caption_box, &lv_font_montserrat_18, UI_TEXT);
-    lv_obj_set_width(s_caption, 264);
-    lv_obj_set_style_text_align(s_caption, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(s_caption);
-    lv_label_set_text(s_caption, "");
-    lv_obj_set_hidden(s_caption_box, true);
-
-    // toast as a pill; dark ink on the warn colour so it stays readable
     s_toast_box = make_pill(scr, 220, 36, UI_WARN);
     lv_obj_align(s_toast_box, LV_ALIGN_BOTTOM_MID, 0, TOAST_BOTTOM);
     s_toast = make_label(s_toast_box, &lv_font_montserrat_14, UI_ON_WARN);
@@ -572,106 +657,106 @@ static void build_caption_and_toast(lv_obj_t *scr)
     lv_obj_set_hidden(s_toast_box, true);
 }
 
-static lv_obj_t *make_action_button(lv_obj_t *parent, int i)
+static void build_bottom_bar(lv_obj_t *scr)
 {
-    lv_obj_t *btn = lv_button_create(parent);
-    lv_obj_set_size(btn, UI_BTN_W, UI_BTN_H);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_LEFT, BTN_ROW_X + i * BTN_ROW_STEP, BTN_ROW_BOTTOM);
-    lv_obj_set_ext_click_area(btn, EXT_CLICK_PX);
-    lv_obj_add_style(btn, &st_btn_base, 0);
-    lv_obj_add_style(btn, &st_btn_pressed, LV_STATE_PRESSED);
-    lv_obj_add_style(btn, &st_btn_off, LV_STATE_DISABLED);
-    lv_obj_add_style(btn, &st_btn_on, LV_STATE_CHECKED);
-    lv_obj_set_style_radius(btn, UI_RADIUS_LG, 0);  // rounder than the overlay buttons
+    for (int i = 0; i < 3; i++) make_big_button(scr, i);
 
-    lv_obj_t *icon = make_label(btn, &lv_font_montserrat_24, lv_color_hex(BTN[i].color));
-    lv_label_set_text(icon, BTN[i].icon);
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 4);
-
-    lv_obj_t *text = make_label(btn, &lv_font_montserrat_14, UI_TEXT_DIM);
-    lv_label_set_text(text, BTN[i].text);
-    lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -2);
-
-    s_btn[i] = btn;
-    s_btn_icon[i] = icon;
-    return btn;
+    // the gear summons the full icon menu (the original's summoned icon grid)
+    lv_obj_t *gear = lv_button_create(scr);
+    lv_obj_set_size(gear, GEAR_W, GEAR_W);
+    lv_obj_align(gear, LV_ALIGN_BOTTOM_RIGHT, -PAD_H + 2, GEAR_BOTTOM);
+    apply_tile_style(gear);
+    lv_obj_set_style_radius(gear, GEAR_W / 2, 0);
+    lv_obj_t *gi = make_label(gear, &lv_font_montserrat_24, UI_TEXT_DIM);
+    lv_label_set_text(gi, LV_SYMBOL_SETTINGS);
+    lv_obj_center(gi);
+    lv_obj_add_event_cb(gear, menu_open_cb, LV_EVENT_CLICKED, NULL);
 }
 
-static void build_action_bar(lv_obj_t *scr)
+static void build_menu(lv_obj_t *scr)
 {
-    for (int i = 0; i < 5; i++) {
-        lv_obj_t *btn = make_action_button(scr, i);
-        if (BTN[i].act == PET_ACT_FEED_MEAL) {
-            lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_SHORT_CLICKED, NULL);
-            lv_obj_add_event_cb(btn, feed_cb, LV_EVENT_LONG_PRESSED, NULL);   // snack
-        } else {
-            lv_obj_add_event_cb(btn, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)BTN[i].act);
-        }
-    }
-    lv_obj_t *info_btn = make_action_button(scr, 5);
-    lv_obj_add_event_cb(info_btn, info_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(info_btn, settings_open_cb, LV_EVENT_LONG_PRESSED, NULL);  // hold: settings
+    s_menu = lv_obj_create(scr);
+    lv_obj_set_size(s_menu, 348, 210);
+    lv_obj_align(s_menu, LV_ALIGN_CENTER, 0, -8);
+    lv_obj_set_style_bg_color(s_menu, UI_PANEL, 0);
+    lv_obj_set_style_border_color(s_menu, UI_BORDER, 0);
+    lv_obj_set_style_border_width(s_menu, 1, 0);
+    lv_obj_set_style_radius(s_menu, UI_RADIUS_LG, 0);
+    lv_obj_set_scrollable(s_menu, false);
+
+    const int x0 = 10, y0 = 12, dx = 82, dy = 94;
+    make_menu_tile(s_menu, x0 + 0 * dx, y0, LV_SYMBOL_PLUS, "Feed", 0x9CC959,
+                   menu_act_cb, (void *)(uintptr_t)PET_ACT_FEED_MEAL, false);
+    make_menu_tile(s_menu, x0 + 1 * dx, y0, LV_SYMBOL_BELL, "Snack", 0x9CC959,
+                   menu_act_cb, (void *)(uintptr_t)PET_ACT_FEED_SNACK, false);
+    make_menu_tile(s_menu, x0 + 2 * dx, y0, LV_SYMBOL_EYE_OPEN, "Lights", 0xFFD166,
+                   menu_act_cb, (void *)(uintptr_t)PET_ACT_LIGHTS, false);
+    make_menu_tile(s_menu, x0 + 3 * dx, y0, LV_SYMBOL_TRASH, "Clean", 0x5DA9E9,
+                   menu_act_cb, (void *)(uintptr_t)PET_ACT_CLEAN, false);
+
+    make_menu_tile(s_menu, x0 + 0 * dx, y0 + dy, LV_SYMBOL_TINT, "Med", 0xFF5A5F,
+                   menu_act_cb, (void *)(uintptr_t)PET_ACT_MEDICINE, false);
+    make_menu_tile(s_menu, x0 + 1 * dx, y0 + dy, LV_SYMBOL_LIST, "Meter", 0x9AA9B8,
+                   meter_cb, NULL, false);
+    make_menu_tile(s_menu, x0 + 2 * dx, y0 + dy, LV_SYMBOL_SETTINGS, "Setup", 0x9AA9B8,
+                   settings_open_cb, NULL, false);
+    make_menu_tile(s_menu, x0 + 3 * dx, y0 + dy, LV_SYMBOL_CLOSE, "Close", 0x9AA9B8,
+                   menu_close_cb, NULL, false);
+
+    lv_obj_set_hidden(s_menu, true);
 }
 
-static void build_info_overlay(lv_obj_t *scr)
+static void build_meter(lv_obj_t *scr)
 {
-    s_info = lv_obj_create(scr);
-    lv_obj_set_size(s_info, INFO_W, INFO_H);
-    lv_obj_align(s_info, LV_ALIGN_CENTER, 0, OVERLAY_Y);
-    lv_obj_set_style_bg_color(s_info, UI_PANEL, 0);
-    lv_obj_set_style_border_color(s_info, UI_BORDER, 0);
-    lv_obj_set_style_border_width(s_info, 1, 0);
-    lv_obj_set_style_radius(s_info, UI_RADIUS, 0);
-    lv_obj_set_scrollable(s_info, false);
-    lv_obj_add_event_cb(s_info, info_cb, LV_EVENT_CLICKED, NULL);  // tap to close
+    s_meter = lv_obj_create(scr);
+    lv_obj_set_size(s_meter, 300, 200);
+    lv_obj_align(s_meter, LV_ALIGN_CENTER, 0, -8);
+    lv_obj_set_style_bg_color(s_meter, UI_PANEL, 0);
+    lv_obj_set_style_border_color(s_meter, UI_BORDER, 0);
+    lv_obj_set_style_border_width(s_meter, 1, 0);
+    lv_obj_set_style_radius(s_meter, UI_RADIUS_LG, 0);
+    lv_obj_set_scrollable(s_meter, false);
+    lv_obj_add_event_cb(s_meter, meter_cb, LV_EVENT_CLICKED, NULL);  // tap to close
 
-    s_info_text = make_label(s_info, &lv_font_montserrat_14, UI_TEXT);
-    lv_obj_align(s_info_text, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_hidden(s_info, true);
+    s_meter_text = make_label(s_meter, &lv_font_montserrat_14, UI_TEXT);
+    lv_obj_align(s_meter_text, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_hidden(s_meter, true);
 }
 
-static void build_settings_overlay(lv_obj_t *scr)
+static void build_settings(lv_obj_t *scr)
 {
     s_settings = lv_obj_create(scr);
-    lv_obj_set_size(s_settings, SET_W, SET_H);
-    lv_obj_align(s_settings, LV_ALIGN_CENTER, 0, OVERLAY_Y);
+    lv_obj_set_size(s_settings, 330, 300);
+    lv_obj_align(s_settings, LV_ALIGN_CENTER, 0, -8);
     lv_obj_set_style_bg_color(s_settings, UI_PANEL, 0);
     lv_obj_set_style_border_color(s_settings, UI_BORDER, 0);
     lv_obj_set_style_border_width(s_settings, 1, 0);
-    lv_obj_set_style_radius(s_settings, UI_RADIUS, 0);
+    lv_obj_set_style_radius(s_settings, UI_RADIUS_LG, 0);
     lv_obj_set_scrollable(s_settings, false);
 
     lv_obj_t *title = make_label(s_settings, &lv_font_montserrat_14, UI_TEXT_DIM);
     lv_label_set_text(title, "SETTINGS");
     lv_obj_set_pos(title, 16, 8);
 
-    // time row
     lv_obj_t *time_lbl = make_label(s_settings, &lv_font_montserrat_14, UI_TEXT);
     lv_label_set_text(time_lbl, "Time");
     lv_obj_set_pos(time_lbl, 16, 50);
     s_settings_time = make_label(s_settings, &lv_font_montserrat_14, UI_ACCENT);
     lv_obj_set_pos(s_settings_time, 16, 76);
-    lv_obj_add_event_cb(make_sbtn(s_settings, "-1h", 176, 46, 66), settings_time_cb,
-                        LV_EVENT_CLICKED, (void *)(intptr_t)-3600);
-    lv_obj_add_event_cb(make_sbtn(s_settings, "+1h", 248, 46, 66), settings_time_cb,
-                        LV_EVENT_CLICKED, (void *)(intptr_t)3600);
+    make_sbtn(s_settings, "-1h", 176, 46, 66, settings_time_cb, (void *)(intptr_t)-3600, false);
+    make_sbtn(s_settings, "+1h", 248, 46, 66, settings_time_cb, (void *)(intptr_t)3600, false);
 
-    // brightness row
     lv_obj_t *br_lbl = make_label(s_settings, &lv_font_montserrat_14, UI_TEXT);
     lv_label_set_text(br_lbl, "Brightness");
     lv_obj_set_pos(br_lbl, 16, 120);
-    lv_obj_add_event_cb(make_sbtn(s_settings, "cycle", 190, 114, 124), settings_bright_cb,
-                        LV_EVENT_CLICKED, NULL);
+    make_sbtn(s_settings, "cycle", 190, 114, 124, settings_bright_cb, NULL, false);
 
-    // reset row (hold to confirm)
     lv_obj_t *reset_lbl = make_label(s_settings, &lv_font_montserrat_14, UI_TEXT);
     lv_label_set_text(reset_lbl, "Reset pet");
     lv_obj_set_pos(reset_lbl, 16, 186);
-    lv_obj_add_event_cb(make_sbtn(s_settings, "hold", 190, 180, 124), settings_reset_cb,
-                        LV_EVENT_LONG_PRESSED, NULL);
+    make_sbtn(s_settings, "hold", 190, 180, 124, settings_reset_cb, NULL, true);
 
-    lv_obj_add_event_cb(make_sbtn(s_settings, "CLOSE", 115, 240, 100), settings_close_cb,
-                        LV_EVENT_CLICKED, NULL);
+    make_sbtn(s_settings, "CLOSE", 115, 240, 100, settings_close_cb, NULL, false);
     lv_obj_set_hidden(s_settings, true);
 }
 
@@ -692,7 +777,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     // blank white frame).
     bsp_display_start();
     bsp_display_lock(0);
-    btn_styles_init();
+    tile_styles_init();
     bsp_display_brightness_set(100);  // a panel command on the pixel bus: under the lock
 
     lv_obj_t *scr = lv_screen_active();
@@ -700,15 +785,17 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_set_scrollable(scr, false);
 
     build_status_bar(scr);
-    build_stat_row(scr);
+    build_needs(scr);
     build_face(scr);
-    build_caption_and_toast(scr);
-    build_action_bar(scr);
-    build_info_overlay(scr);
-    build_settings_overlay(scr);
+    build_toast(scr);
+    build_bottom_bar(scr);
+    build_menu(scr);
+    build_meter(scr);
+    build_settings(scr);
     register_touch_log();
 
     lv_timer_create(blink_cb, BLINK_PERIOD_MS, NULL);
+    lv_timer_create(pulse_cb, PULSE_MS, NULL);
     lv_timer_create(repaint_cb, REPAINT_MS, NULL);  // self-heal against dropped SPI chunks
 
     bsp_display_unlock();

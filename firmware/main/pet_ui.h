@@ -25,6 +25,7 @@ typedef struct {
     bool        batt_ok;
     battery_status_t batt;
     bool        enabled[PET_ACT_COUNT]; // pet_action_enabled(): grey out the rest
+    pet_need_t  need;                   // the one thing to call attention to
 } pet_ui_snapshot_t;
 
 typedef void (*pet_ui_action_cb_t)(pet_action_t a);

@@ -52,6 +52,7 @@ static void snapshot(pet_ui_snapshot_t *s, int64_t now)
     for (int a = 0; a < PET_ACT_COUNT; a++) {
         s->enabled[a] = pet_action_enabled(&s_pet, (pet_action_t)a);
     }
+    s->need = pet_need(&s_pet);
 }
 
 // Never call pet_ui_* while holding s_lock: the LVGL task takes s_lock from
