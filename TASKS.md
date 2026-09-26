@@ -64,7 +64,8 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
       (pure `pet_need()`), **4 candy icon tiles**, settings behind a long-press. Removed the
       5-bar row, the 6-button bar, and the captions. `lvgl-ui` gains `references/screens.md`.
 - [x] **Monochrome rabbit UI.** A generated cute rabbit (`rabbit_idle/eat/drink/sleep/egg`),
-      a subtle **chatbox** with the need icon, **food/water drop onto the pet** (lv_anim) so
-      it eats/drinks, and **sleep** (lights) closes its eyes. Three round buttons (food /
+      a subtle **chatbox** with the need icon, and giving **food/water makes the item appear
+      and the rabbit chews/drinks it** (multi-frame chew, item shrinks until gone) — no
+      instant stat bump. **Sleep** (lights) closes its eyes. Three round buttons (food /
       water / sleep); clean & medicine via the chatbox. Model gained **thirst** (water) and a
       **sleep** need; `PET_SCHEMA_VERSION` 3. All art via `tools/sprites/make_icons.py`.

@@ -188,8 +188,9 @@ Icon-only hero screen (v3, 2026-09-19 — see the `lvgl-ui` skill, `references/s
 No words at rest: hearts, the pet, one call, four candy tiles.
 
 Monochrome rabbit, minimal chrome. The pet is the screen; a small **chatbox**
-shows what it wants (an icon, subtle); giving **food** or **water** drops the item
-onto it and it eats/drinks; **sleep** switches the lights off and it naps.
+shows what it wants (an icon, subtle); giving **food** or **water** makes the item
+appear in front of it and it **chews/drinks until it is gone** (a multi-frame
+animation, not an instant stat bump); **sleep** switches the lights off and it naps.
 
 ```
 ┌────────────────────────────┐

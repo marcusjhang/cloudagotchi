@@ -23,10 +23,11 @@ Behaviour that makes it feel alive, not like a form:
 - **A chatbox, not a wall of meters.** When a need is low, a small rounded bubble
   shows just the icon for it (food / water / sleep / clean / med). It is subtle on
   purpose — the pet should not scream at you. Tapping the bubble gives the item.
-- **Food and water drop in.** Pressing Food/Water spawns the icon above the pet and
-  animates it down onto it (`lv_anim`, ~450 ms, ease-in), then the pet switches to
-  its eat/drink frame for the transient window. Action and feedback are the same
-  gesture.
+- **It actually eats / drinks.** Pressing Food/Water makes the item **appear in
+  front of the pet** (scale-in), and the pet **chews** it — a timer alternates its
+  open-mouth and closed-mouth frames (~140 ms) while the item **shrinks away as it
+  is consumed**. No instant stat bump, and no "item falls and vanishes" shortcut:
+  the consumption is animated until the item is gone.
 - **Sleep visibly happens.** The sleep button toggles the lights; the rabbit's eyes
   close and it naps. No text explains it.
 - **Three controls only.** Food, Water, Sleep. Everything else (clean, medicine) is

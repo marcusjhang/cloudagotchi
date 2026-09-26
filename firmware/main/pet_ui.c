@@ -37,9 +37,8 @@ static const char *TAG = "pet_ui";
 #define CHAT_X           46
 #define CHAT_Y           34
 #define CHAT_D           96
-#define DROP_X           160
-#define DROP_Y0          18
-#define DROP_Y1          150
+#define ITEM_X           (SCR_W / 2 + 44)  // appears just in front of the mouth
+#define ITEM_Y           (PET_CENTER_Y + 44)
 
 #define BTN_D            72
 #define BTN_X0           28
@@ -50,7 +49,8 @@ static const char *TAG = "pet_ui";
 
 #define REPAINT_MS       15000
 #define PULSE_MS         700
-#define DROP_MS          450
+#define CHEW_MS          140               // mouth open/closed cadence while eating
+#define CHEW_STEPS       10
 
 static pet_ui_action_cb_t s_on_action;
 
@@ -58,7 +58,8 @@ static lv_obj_t *s_pet;
 static lv_obj_t *s_poop;
 static lv_obj_t *s_chat;
 static lv_obj_t *s_chat_icon;
-static lv_obj_t *s_drop;
+static lv_obj_t *s_item;
+static lv_timer_t *s_chew_timer;
 static lv_obj_t *s_btn[3];
 static lv_obj_t *s_settings;
 static lv_obj_t *s_settings_time;
@@ -70,6 +71,9 @@ static bool s_chat_on;
 
 typedef enum { GIVE_NONE, GIVE_FOOD, GIVE_WATER } give_t;
 static give_t s_give;
+static bool s_chewing;
+static bool s_chew_open;
+static int s_chew_left;
 
 static const pet_action_t BTN_ACT[3] = {PET_ACT_FEED_MEAL, PET_ACT_DRINK, PET_ACT_LIGHTS};
 static const lv_image_dsc_t *BTN_ICON[3] = {&ic_feed, &ic_water, &ic_sleep};
@@ -98,10 +102,9 @@ static const lv_image_dsc_t *frame_for(const pet_ui_snapshot_t *s)
 {
     if (s->stage == PET_STAGE_EGG) return &rabbit_egg;
     if (s->asleep)                 return &rabbit_sleep;
-    if (s->face == PET_FACE_EATING) {
-        if (s_give == GIVE_WATER)  return &rabbit_drink;
-        if (s_give == GIVE_FOOD)   return &rabbit_eat;
-        return &rabbit_eat;
+    if (s_chewing) {
+        const lv_image_dsc_t *open = (s_give == GIVE_WATER) ? &rabbit_drink : &rabbit_eat;
+        return s_chew_open ? open : &rabbit_idle;  // alternate to read as chewing
     }
     return &rabbit_idle;
 }
@@ -129,33 +132,72 @@ static void need_icon(pet_need_t n, const lv_image_dsc_t **icon)
     }
 }
 
-static void drop_done_cb(lv_anim_t *a)
+static void item_scale_cb(void *obj, int32_t v)
 {
-    (void)a;
-    lv_obj_set_hidden(s_drop, true);
+    lv_image_set_scale((lv_obj_t *)obj, v);
 }
 
-// Give the pet what it is asking for, and (for food/water) drop the item in.
+static void item_done_cb(lv_anim_t *a)
+{
+    (void)a;
+    lv_obj_set_hidden(s_item, true);
+}
+
+static void chew_cb(lv_timer_t *t)
+{
+    if (s_chew_left <= 0) {
+        s_chewing = false;
+        lv_timer_delete(t);
+        s_chew_timer = NULL;
+        if (s_have_snap) show_frame(frame_for(&s_snap));
+        return;
+    }
+    s_chew_open = !s_chew_open;
+    s_chew_left--;
+    if (s_have_snap) show_frame(frame_for(&s_snap));
+}
+
+// The item appears in front of the pet and it chews/drinks until it is gone.
+static void start_eating(give_t g)
+{
+    s_give = g;
+    s_chewing = true;
+    s_chew_open = true;
+    s_chew_left = CHEW_STEPS;
+
+    lv_image_set_src(s_item, g == GIVE_WATER ? &ic_water : &ic_feed);
+    lv_obj_set_pos(s_item, ITEM_X, ITEM_Y);
+    lv_obj_set_hidden(s_item, false);
+
+    lv_anim_t grow;  // appears
+    lv_anim_init(&grow);
+    lv_anim_set_var(&grow, s_item);
+    lv_anim_set_exec_cb(&grow, item_scale_cb);
+    lv_anim_set_values(&grow, 100, 256);
+    lv_anim_set_time(&grow, 160);
+    lv_anim_start(&grow);
+
+    lv_anim_t eaten;  // shrinks away as it is consumed
+    lv_anim_init(&eaten);
+    lv_anim_set_var(&eaten, s_item);
+    lv_anim_set_exec_cb(&eaten, item_scale_cb);
+    lv_anim_set_values(&eaten, 256, 0);
+    lv_anim_set_time(&eaten, 700);
+    lv_anim_set_delay(&eaten, 400);
+    lv_anim_set_ready_cb(&eaten, item_done_cb);
+    lv_anim_start(&eaten);
+
+    if (s_chew_timer) lv_timer_reset(s_chew_timer);
+    else s_chew_timer = lv_timer_create(chew_cb, CHEW_MS, NULL);
+    if (s_have_snap) show_frame(frame_for(&s_snap));
+}
+
+// Give the pet what it is asking for.
 static void give(pet_action_t a)
 {
     if (!s_on_action) return;
-    if (a == PET_ACT_FEED_MEAL) s_give = GIVE_FOOD;
-    else if (a == PET_ACT_DRINK) s_give = GIVE_WATER;
-
-    if (a == PET_ACT_FEED_MEAL || a == PET_ACT_DRINK) {
-        lv_image_set_src(s_drop, a == PET_ACT_DRINK ? &ic_water : &ic_feed);
-        lv_obj_set_pos(s_drop, DROP_X, DROP_Y0);
-        lv_obj_set_hidden(s_drop, false);
-        lv_anim_t an;
-        lv_anim_init(&an);
-        lv_anim_set_var(&an, s_drop);
-        lv_anim_set_exec_cb(&an, (lv_anim_exec_xcb_t)lv_obj_set_y);
-        lv_anim_set_values(&an, DROP_Y0, DROP_Y1);
-        lv_anim_set_time(&an, DROP_MS);
-        lv_anim_set_path_cb(&an, lv_anim_path_ease_in);
-        lv_anim_set_ready_cb(&an, drop_done_cb);
-        lv_anim_start(&an);
-    }
+    if (a == PET_ACT_FEED_MEAL)   start_eating(GIVE_FOOD);
+    else if (a == PET_ACT_DRINK)  start_eating(GIVE_WATER);
     s_on_action(a);
 }
 
@@ -212,7 +254,6 @@ static void render(const pet_ui_snapshot_t *s)
         lv_obj_set_state(s_btn[i], LV_STATE_DISABLED, !s->enabled[BTN_ACT[i]]);
     }
 
-    if (s->face != PET_FACE_EATING) s_give = GIVE_NONE;  // clear the eat/drink frame
     show_frame(frame_for(s));
     lv_obj_set_hidden(s_poop, !s->dirty);
 
@@ -362,11 +403,11 @@ static void build_pet(lv_obj_t *scr)
     lv_obj_add_event_cb(s_chat, chat_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_set_hidden(s_chat, true);
 
-    // the falling food/water
-    s_drop = lv_image_create(scr);
-    lv_image_set_src(s_drop, &ic_feed);
-    lv_obj_set_pos(s_drop, DROP_X, DROP_Y0);
-    lv_obj_set_hidden(s_drop, true);
+    // the food/water the pet is eating (appears in front of the mouth)
+    s_item = lv_image_create(scr);
+    lv_image_set_src(s_item, &ic_feed);
+    lv_obj_set_pos(s_item, ITEM_X, ITEM_Y);
+    lv_obj_set_hidden(s_item, true);
 }
 
 static void build_buttons(lv_obj_t *scr)
