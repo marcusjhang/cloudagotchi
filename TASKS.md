@@ -63,7 +63,7 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
       pets' "no HUD until asked"): pet as the hero, Food/Fun **hearts**, one pulsing **call**
       (pure `pet_need()`), **4 candy icon tiles**, settings behind a long-press. Removed the
       5-bar row, the 6-button bar, and the captions. `lvgl-ui` gains `references/screens.md`.
-- [x] Icon-only restyle — **no words at rest**: a generated icon set
-      (`tools/sprites/make_icons.py` → `assets/icons/` → RGB565A8) replaces every font glyph;
-      candy palette (`UI_C_*`), white icons on colour tiles, warm/pink hearts. Blocks a
-      text/emoji look-alike.
+- [x] Icon clarity pass — unmistakable pictograms (burger/ball/drop/cross/smiley) replace the
+      abstract shapes; the two needs became **labelled bars** (burger + orange, smiley + pink)
+      instead of mystery hearts; each tile carries one small word. Generated via
+      `tools/sprites/make_icons.py` → `assets/icons/` → RGB565A8.

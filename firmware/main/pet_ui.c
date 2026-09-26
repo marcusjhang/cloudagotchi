@@ -38,11 +38,12 @@ static const char *TAG = "pet_ui";
 #define SCR_W            368
 #define SCR_H            448
 
-#define HEART_W          28
-#define HEART_DX         32
-#define NEEDS_X0         122          // both rows centred
-#define NEEDS_FOOD_Y     14
-#define NEEDS_FUN_Y      46
+#define NEED_ICON_X      22
+#define NEED_BAR_X       56
+#define NEED_BAR_W       250
+#define NEED_BAR_H       16
+#define NEED_ROW1_Y      14
+#define NEED_ROW2_Y      44
 
 #define FACE_Y           (-13)
 #define GROUND_DY        70
@@ -57,8 +58,6 @@ static const char *TAG = "pet_ui";
 
 #define EXT_CLICK_PX     20
 
-#define HEARTS           4
-
 /* timers */
 #define BLINK_PERIOD_MS  4200
 #define BLINK_MS         120
@@ -67,8 +66,7 @@ static const char *TAG = "pet_ui";
 
 static pet_ui_action_cb_t s_on_action;
 
-static lv_obj_t *s_hearts[2][HEARTS];       // 0 = food, 1 = fun
-static const lv_image_dsc_t *s_heart_fill[2] = {&ic_heart_food, &ic_heart_fun};
+static lv_obj_t *s_need_bar[2];             // 0 = food, 1 = fun
 static lv_obj_t *s_ground;
 static lv_obj_t *s_face;
 static lv_obj_t *s_poop;
@@ -86,13 +84,8 @@ static bool s_badge_on;
 static const pet_action_t TILE_ACT[4] = {PET_ACT_FEED_MEAL, PET_ACT_PLAY,
                                          PET_ACT_CLEAN, PET_ACT_MEDICINE};
 static const lv_image_dsc_t *TILE_ICON[4] = {&ic_feed, &ic_play, &ic_clean, &ic_med};
+static const char *const TILE_TEXT[4] = {"Feed", "Play", "Clean", "Med"};
 static const uint32_t TILE_BG[4] = {0xFF9F45, 0xFF6FA5, 0x45B7F0, 0x5BD66F};
-
-static int hearts_of(int stat)
-{
-    const int h = (stat * HEARTS + 50) / 100;
-    return h < 0 ? 0 : h > HEARTS ? HEARTS : h;
-}
 
 /* ---------- styles --------------------------------------------------------- */
 
@@ -193,7 +186,7 @@ static void badge_look_for(pet_need_t n, const lv_image_dsc_t **icon, uint32_t *
     case PET_NEED_CLEAN: *icon = &ic_clean; *color = 0x45B7F0; break;
     case PET_NEED_FOOD:  *icon = &ic_feed;  *color = 0xFF9F45; break;
     case PET_NEED_FUN:   *icon = &ic_play;  *color = 0xFF6FA5; break;
-    default:             *icon = &ic_heart_fun; *color = 0x9A7BFF; break;
+    default:             *icon = &ic_happy; *color = 0x9A7BFF; break;
     }
 }
 
@@ -214,13 +207,8 @@ static void badge_cb(lv_event_t *e)
 
 static void render_needs(const pet_ui_snapshot_t *s)
 {
-    const int n[2] = {hearts_of(s->stats[PET_STAT_FULLNESS]),
-                      hearts_of(s->stats[PET_STAT_HAPPINESS])};
-    for (int g = 0; g < 2; g++) {
-        for (int i = 0; i < HEARTS; i++) {
-            lv_image_set_src(s_hearts[g][i], i < n[g] ? s_heart_fill[g] : &ic_heart_empty);
-        }
-    }
+    lv_bar_set_value(s_need_bar[0], s->stats[PET_STAT_FULLNESS], LV_ANIM_OFF);
+    lv_bar_set_value(s_need_bar[1], s->stats[PET_STAT_HAPPINESS], LV_ANIM_OFF);
 }
 
 static void render_call(const pet_ui_snapshot_t *s)
@@ -378,14 +366,22 @@ static lv_obj_t *make_sbtn(lv_obj_t *parent, const char *text, int x, int y, int
 
 static void build_needs(lv_obj_t *scr)
 {
-    const int y[2] = {NEEDS_FOOD_Y, NEEDS_FUN_Y};
+    const lv_image_dsc_t *icon[2] = {&ic_feed_s, &ic_happy_s};  // food, fun
+    const int y[2] = {NEED_ROW1_Y, NEED_ROW2_Y};
     for (int g = 0; g < 2; g++) {
-        for (int i = 0; i < HEARTS; i++) {
-            lv_obj_t *h = lv_image_create(scr);
-            lv_image_set_src(h, &ic_heart_empty);
-            lv_obj_set_pos(h, NEEDS_X0 + i * HEART_DX, y[g]);
-            s_hearts[g][i] = h;
-        }
+        lv_obj_t *im = lv_image_create(scr);
+        lv_image_set_src(im, icon[g]);
+        lv_obj_set_pos(im, NEED_ICON_X, y[g] - 3);
+
+        lv_obj_t *bar = lv_bar_create(scr);
+        lv_obj_set_size(bar, NEED_BAR_W, NEED_BAR_H);
+        lv_obj_set_pos(bar, NEED_BAR_X, y[g]);
+        lv_bar_set_range(bar, 0, 100);
+        lv_obj_set_style_bg_color(bar, UI_SURFACE_OFF, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, lv_color_hex(TILE_BG[g]), LV_PART_INDICATOR);
+        lv_obj_set_style_radius(bar, NEED_BAR_H / 2, LV_PART_MAIN);
+        lv_obj_set_style_radius(bar, NEED_BAR_H / 2, LV_PART_INDICATOR);
+        s_need_bar[g] = bar;
     }
 }
 
@@ -441,7 +437,11 @@ static void build_tiles(lv_obj_t *scr)
 
         lv_obj_t *icon = lv_image_create(tile);
         lv_image_set_src(icon, TILE_ICON[i]);
-        lv_obj_center(icon);
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 6);
+
+        lv_obj_t *lb = make_label(tile, &lv_font_montserrat_14, UI_ON_COLOR);
+        lv_label_set_text(lb, TILE_TEXT[i]);
+        lv_obj_align(lb, LV_ALIGN_BOTTOM_MID, 0, -4);
 
         lv_obj_add_event_cb(tile, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)TILE_ACT[i]);
         s_tile[i] = tile;

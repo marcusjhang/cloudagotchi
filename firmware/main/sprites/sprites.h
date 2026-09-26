@@ -4,8 +4,8 @@
 
 extern const lv_image_dsc_t ic_clean;
 extern const lv_image_dsc_t ic_feed;
-extern const lv_image_dsc_t ic_heart_empty;
-extern const lv_image_dsc_t ic_heart_food;
-extern const lv_image_dsc_t ic_heart_fun;
+extern const lv_image_dsc_t ic_feed_s;
+extern const lv_image_dsc_t ic_happy;
+extern const lv_image_dsc_t ic_happy_s;
 extern const lv_image_dsc_t ic_med;
 extern const lv_image_dsc_t ic_play;

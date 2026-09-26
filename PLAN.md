@@ -189,19 +189,20 @@ No words at rest: hearts, the pet, one call, four candy tiles.
 
 ```
 ┌────────────────────────────┐
-│          ♥ ♥ ♥ ♡           │  Food hearts (warm)
-│          ♥ ♥ ♡ ♡           │  Fun hearts (pink)
+│ (food) ▰▰▰▰▰▰▱▱▱▱          │  hunger bar, orange, burger icon labels it
+│ ( :-) ) ▰▰▰▰▰▰▱▱▱▱         │  happy bar, pink, smiley icon labels it
 │              ( ! )         │  one pulsing "call" over the pet; tap = fix
 │            ( pet )         │  pet centred on a soft pedestal (the hero)
-│  [feed][play][clean][med]  │  four 80 px tiles, white icons on candy colours
+│ [burger][ball][drop][+ ]   │  four 80 px tiles, white icon + tiny label
 └────────────────────────────┘
 ```
 
 `pet_need()` (pure, host-tested) picks the most urgent need for the call and
 lights the matching tile; `pet_action_enabled()` drives each tile's disabled
-state. Icons are a generated image set (`tools/sprites/make_icons.py` → RGB565A8),
-so there are no font/emoji glyphs and nothing to read. Settings (time,
-brightness, reset) hide behind a long-press on the pet.
+state. Icons are a generated image set (`tools/sprites/make_icons.py` → RGB565A8)
+with unmistakable shapes (burger = feed, ball = play, water drop = clean, cross =
+medicine, smiley = happy), each tile carrying one small word so it is never
+ambiguous. Settings (time, brightness, reset) hide behind a long-press on the pet.
 
 Touch rules from the field guide: parallax puts contact **15–25 px below** the target ⇒ every
 hit zone extended ~20 px downward (`lv_obj_set_ext_click_area`), nothing under 40 px tall,
