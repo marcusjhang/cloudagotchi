@@ -63,7 +63,9 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
       pets' "no HUD until asked"): pet as the hero, Food/Fun **hearts**, one pulsing **call**
       (pure `pet_need()`), **4 candy icon tiles**, settings behind a long-press. Removed the
       5-bar row, the 6-button bar, and the captions. `lvgl-ui` gains `references/screens.md`.
-- [x] UI direction chosen from mocks (scene `A72ceSRfIgH`): **"cozy night"**, icon-only,
-      no words. Deep-navy sky with stars + a moon, a ground band, muted candy round buttons,
-      need bars with burger/smiley icons, the pulsing call, long-press settings. Icons via
-      `tools/sprites/make_icons.py` → `assets/icons/` → RGB565A8.
+- [x] **Monochrome face-first UI** (owner reference: a big friendly face on black, no
+      chrome). White on true black: big centred pet, a pulsing white **call ring** (pure
+      `pet_need()`), **one tiny lowercase status word**, and **four dark circle buttons**
+      with white icons, no captions. Settings behind a long-press. Icons via
+      `tools/sprites/make_icons.py` → `assets/icons/` → RGB565A8. (Colour "cozy night"
+      variant kept in the mocked options scene `A72ceSRfIgH`.)
