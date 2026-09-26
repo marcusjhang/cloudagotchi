@@ -60,7 +60,10 @@ Phases live in `PLAN.md §7`. Structure diagram: Excalidraw scene `4WRHwsoGZ8m` 
       block. Modern-pet-UI inspiration (one large character, compact status, soft panels) is
       carried by `ui_theme.h` + the `lvgl-ui` skill.
 - [x] UI hero redesign — after research (original P1's 3-button + summoned icon row, modern
-      pets' "no HUD until asked"), cut the screen to: pet as the hero, Food/Fun **hearts**,
-      one pulsing **call** badge (from the new pure `pet_need()`), **3 big thumb-sized
-      buttons** + a gear that summons the icon menu. Removed the 5-bar row, the 6-button bar,
-      and sentence captions. `lvgl-ui` skill updated with `references/screens.md`.
+      pets' "no HUD until asked"): pet as the hero, Food/Fun **hearts**, one pulsing **call**
+      (pure `pet_need()`), **4 candy icon tiles**, settings behind a long-press. Removed the
+      5-bar row, the 6-button bar, and the captions. `lvgl-ui` gains `references/screens.md`.
+- [x] Icon-only restyle — **no words at rest**: a generated icon set
+      (`tools/sprites/make_icons.py` → `assets/icons/` → RGB565A8) replaces every font glyph;
+      candy palette (`UI_C_*`), white icons on colour tiles, warm/pink hearts. Blocks a
+      text/emoji look-alike.

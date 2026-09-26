@@ -3,40 +3,39 @@
 A virtual pet on a Waveshare ESP32-S3-Touch-AMOLED-1.8 (368x448 AMOLED, I2C touch),
 built with ESP-IDF v5.5 + LVGL 9. The conventions in this skill come from here.
 
-## The screen (hero layout, see screens.md)
+## The screen: icon-only, no words (see screens.md)
 
 ```
-top      "teen · 3d 4h"  (left)          "14:07 87%" (right)      small, dim
-need     Food ♥♥♥♡      Fun ♥♥♥♡     four hearts each, like the original
-middle   the pet, centred, on a soft pedestal
-         a pulsing call badge over its shoulder when it needs something
-bottom   [ Feed ]  [ Play ]  [ Clean ]            (three big tiles)      gear
-overlays MENU (icon grid), METER, SETTINGS - all summoned
+┌────────────────────────────┐
+│          ♥ ♥ ♥ ♡           │  Food hearts (warm)
+│          ♥ ♥ ♡ ♡           │  Fun hearts (pink)
+│              ( ! )         │  one pulsing call over the pet; tap = the fix
+│            ( pet )         │  pet centred on a soft pedestal (the hero)
+│  [feed][play][clean][med]  │  four 80px tiles, white icons on candy colours
+└────────────────────────────┘
 ```
 
-At rest there are **three buttons and one call**. Everything else lives behind the
-gear, exactly like the original Tamagotchi's summoned icon row.
+There is **no text at rest** — no clock, no stage, no captions, no toasts. A
+pre-reader can use the whole screen. Settings (time, brightness, reset) hide
+behind a long-press on the pet; a dead pet restarts on a tap.
 
-## Buttons
+## Icons are images, not glyphs
 
-Three `94x80` tiles at the bottom, ~7.4 mm on this panel, colour-coded icons
-(Feed green, Play pink, Clean blue) and one-word captions. Shared pressed /
-disabled / checked styles; the checked state marks the button the call points at.
+Every pictogram is generated (`tools/sprites/make_icons.py`) as a rounded PNG and
+compiled to RGB565A8 with LVGL's `LVGLImage.py`. Icons are **white silhouettes**
+so they sit on colour tiles, and supersampled 4x then downscaled for smooth
+edges. This avoids the two failure modes of glyph icons: no emoji, and no
+mismatched FontAwesome line-art that reads as a developer default.
 
-The gear opens an 8-tile icon grid: Feed, Snack, Lights, Clean, Med, Meter,
-Settings, Close. Snack and Lights live here rather than behind a long-press, so
-nothing important is a hidden gesture.
+Tile colours are candy accents on black (`UI_C_FEED` orange, `UI_C_PLAY` pink,
+`UI_C_CLEAN` sky, `UI_C_MED` green). Hearts are a warm and a pink set plus a dim
+"empty" heart.
 
-## The call
+## State without words
 
-`pet_need()` (pure, host-tested) returns the one most urgent need — MED over
-CLEAN over FOOD over FUN. The snapshot carries it; the UI shows one pulsing badge
-with a matching icon and colour, and **tapping the badge performs the fix**.
-Sickness outranks everything; a sleeping pet is not nagged.
-
-## Theme
-
-`ui_theme.h` holds every colour and measurement: surfaces stepped up from black,
-one accent, semantic success/warn/danger, plus the soft-motif tokens
-(`UI_TRACK`, `UI_GROUND`, `UI_BUBBLE`, `UI_ON_WARN`). Changing the look is a
-one-file edit.
+- `pet_need()` (pure, host-tested) returns the single most urgent need
+  (MED > CLEAN > FOOD > FUN). One pulsing badge shows it; **tapping the badge
+  performs the fix**; the matching tile gets a bright ring.
+- `pet_action_enabled()` (pure) drives each tile's disabled state, so a refused
+  action is simply not pressable — no "not hungry" toast.
+- The face, the poop sprite and sleep carry the rest.

@@ -184,25 +184,24 @@ hunger/happy) and a single good/bad adult branch rather than the P1's full roste
 
 ### 4.6 Screen (368 × 448)
 
-Hero layout: the pet owns the middle, needs are coarse hearts, controls are few and
-summoned (v2, 2026-09-19 — see the `lvgl-ui` skill's `references/screens.md`).
+Icon-only hero screen (v3, 2026-09-19 — see the `lvgl-ui` skill, `references/screens.md`).
+No words at rest: hearts, the pet, one call, four candy tiles.
 
 ```
 ┌────────────────────────────┐
-│ teen · 3d 4h     14:07 87% │  status: stage·age (left), clock·battery (right)
-│ Food ♥♥♥♡     Fun ♥♥♥♡     │  two needs, four hearts each (like the original)
-│                            │
-│          [ ! ]             │  one pulsing "call" badge over the pet; tap = fix
-│          pet               │  pet centred on a soft pedestal (the hero)
-│                            │
-│  [ Feed ] [ Play ] [ Clean ]│  3 big tiles (~94×80, ~7 mm)      [gear] → menu
+│          ♥ ♥ ♥ ♡           │  Food hearts (warm)
+│          ♥ ♥ ♡ ♡           │  Fun hearts (pink)
+│              ( ! )         │  one pulsing "call" over the pet; tap = fix
+│            ( pet )         │  pet centred on a soft pedestal (the hero)
+│  [feed][play][clean][med]  │  four 80 px tiles, white icons on candy colours
 └────────────────────────────┘
 ```
 
-The gear summons an icon grid (Feed, Snack, Lights, Clean, Med, Meter, Settings,
-Close); METER and SETTINGS are summoned overlays. `pet_need()` (pure, host-tested)
-picks the single most urgent need for the call; `pet_action_enabled()` drives each
-tile's disabled state. No hidden gestures in the core loop.
+`pet_need()` (pure, host-tested) picks the most urgent need for the call and
+lights the matching tile; `pet_action_enabled()` drives each tile's disabled
+state. Icons are a generated image set (`tools/sprites/make_icons.py` → RGB565A8),
+so there are no font/emoji glyphs and nothing to read. Settings (time,
+brightness, reset) hide behind a long-press on the pet.
 
 Touch rules from the field guide: parallax puts contact **15–25 px below** the target ⇒ every
 hit zone extended ~20 px downward (`lv_obj_set_ext_click_area`), nothing under 40 px tall,
