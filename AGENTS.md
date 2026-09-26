@@ -68,6 +68,21 @@ PY
 `FAST_FORWARD` (game time ×N) is wired to a build flag: `idf.py -DFAST_FORWARD=60 build`.
 The touch log (`pet_ui: touch down x,y`) is permanent by design.
 
+## Workflow
+
+This repo is driven by a **personal software factory** (`psf`). Route changes
+through it rather than editing ad hoc:
+
+```bash
+psf validate                       # compile-check factory/factory.yml
+psf run "<goal>"                   # intake -> spec -> approval -> build -> verify -> review
+psf status / psf audit             # work items and health
+psf outcome <work-id> --accepted   # record the real outcome
+```
+
+`factory/` holds the definition (`factory.yml`, agent prompts); `.psf/` holds the
+local ledger. See `factory/AGENTS.md`.
+
 ## Rules of the road
 
 - `tools/check.sh` must be green before you commit: it runs the rules sim

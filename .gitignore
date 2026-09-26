@@ -15,3 +15,7 @@ tools/sprites/raw/
 # Local tooling
 .claude/
 .DS_Store
+
+# Personal software factory ledger/state (local sqlite; the definition in
+# factory/ is committed, the ledger is not)
+.psf/
