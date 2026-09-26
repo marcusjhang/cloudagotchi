@@ -84,8 +84,7 @@ static bool s_badge_on;
 static const pet_action_t TILE_ACT[4] = {PET_ACT_FEED_MEAL, PET_ACT_PLAY,
                                          PET_ACT_CLEAN, PET_ACT_MEDICINE};
 static const lv_image_dsc_t *TILE_ICON[4] = {&ic_feed, &ic_play, &ic_clean, &ic_med};
-static const char *const TILE_TEXT[4] = {"Feed", "Play", "Clean", "Med"};
-static const uint32_t TILE_BG[4] = {0xFF9F45, 0xFF6FA5, 0x45B7F0, 0x5BD66F};
+static const uint32_t TILE_BG[4] = {0xE8A15C, 0xE88AB0, 0x5AA9E6, 0x67C57A};
 
 /* ---------- styles --------------------------------------------------------- */
 
@@ -224,6 +223,7 @@ static void render_call(const pet_ui_snapshot_t *s)
     lv_obj_set_style_bg_color(s_badge, lv_color_hex(color), 0);
     lv_obj_set_style_opa(s_badge, LV_OPA_COVER, 0);
 }
+
 
 static void render_tiles(const pet_ui_snapshot_t *s)
 {
@@ -364,6 +364,38 @@ static lv_obj_t *make_sbtn(lv_obj_t *parent, const char *text, int x, int y, int
     return btn;
 }
 
+// Ambient "cozy night": a few stars, a moon, and a ground band. Cheap to draw,
+// and it makes the black screen feel like a place rather than an empty panel.
+static void build_scene(lv_obj_t *scr)
+{
+    static const struct { int x, y, d; } STARS[] = {
+        {40, 120, 6}, {90, 70, 4}, {152, 150, 5}, {212, 62, 7},
+        {300, 122, 5}, {66, 210, 4}, {330, 200, 6}, {252, 238, 4},
+    };
+    for (unsigned i = 0; i < sizeof(STARS) / sizeof(STARS[0]); i++) {
+        lv_obj_t *s = lv_obj_create(scr);
+        lv_obj_set_size(s, STARS[i].d, STARS[i].d);
+        lv_obj_set_style_radius(s, STARS[i].d / 2, 0);
+        lv_obj_set_style_bg_color(s, UI_STAR, 0);
+        lv_obj_set_style_border_width(s, 0, 0);
+        lv_obj_set_pos(s, STARS[i].x, STARS[i].y);
+    }
+
+    lv_obj_t *moon = lv_obj_create(scr);
+    lv_obj_set_size(moon, 46, 46);
+    lv_obj_set_style_radius(moon, 23, 0);
+    lv_obj_set_style_bg_color(moon, UI_MOON, 0);
+    lv_obj_set_style_border_width(moon, 0, 0);
+    lv_obj_set_pos(moon, SCR_W - 16 - 46, 22);
+
+    lv_obj_t *ground = lv_obj_create(scr);
+    lv_obj_set_size(ground, SCR_W, 150);
+    lv_obj_set_style_radius(ground, 28, 0);
+    lv_obj_set_style_bg_color(ground, UI_GROUND, 0);
+    lv_obj_set_style_border_width(ground, 0, 0);
+    lv_obj_set_pos(ground, 0, SCR_H - 150);
+}
+
 static void build_needs(lv_obj_t *scr)
 {
     const lv_image_dsc_t *icon[2] = {&ic_feed_s, &ic_happy_s};  // food, fun
@@ -377,7 +409,7 @@ static void build_needs(lv_obj_t *scr)
         lv_obj_set_size(bar, NEED_BAR_W, NEED_BAR_H);
         lv_obj_set_pos(bar, NEED_BAR_X, y[g]);
         lv_bar_set_range(bar, 0, 100);
-        lv_obj_set_style_bg_color(bar, UI_SURFACE_OFF, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, UI_TRACK, LV_PART_MAIN);
         lv_obj_set_style_bg_color(bar, lv_color_hex(TILE_BG[g]), LV_PART_INDICATOR);
         lv_obj_set_style_radius(bar, NEED_BAR_H / 2, LV_PART_MAIN);
         lv_obj_set_style_radius(bar, NEED_BAR_H / 2, LV_PART_INDICATOR);
@@ -435,13 +467,11 @@ static void build_tiles(lv_obj_t *scr)
         lv_obj_set_ext_click_area(tile, EXT_CLICK_PX);
         apply_tile(tile, lv_color_hex(TILE_BG[i]));
 
+        lv_obj_set_style_radius(tile, TILE_D / 2, 0);  // round candy button
+
         lv_obj_t *icon = lv_image_create(tile);
         lv_image_set_src(icon, TILE_ICON[i]);
-        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 6);
-
-        lv_obj_t *lb = make_label(tile, &lv_font_montserrat_14, UI_ON_COLOR);
-        lv_label_set_text(lb, TILE_TEXT[i]);
-        lv_obj_align(lb, LV_ALIGN_BOTTOM_MID, 0, -4);
+        lv_obj_center(icon);
 
         lv_obj_add_event_cb(tile, action_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)TILE_ACT[i]);
         s_tile[i] = tile;
@@ -506,6 +536,7 @@ void pet_ui_start(pet_ui_action_cb_t on_action)
     lv_obj_set_style_bg_color(scr, UI_BG, 0);  // AMOLED: black = pixels off
     lv_obj_set_scrollable(scr, false);
 
+    build_scene(scr);
     build_needs(scr);
     build_face(scr);
     build_tiles(scr);

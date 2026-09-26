@@ -7,22 +7,27 @@ built with ESP-IDF v5.5 + LVGL 9. The conventions in this skill come from here.
 
 ```
 ┌────────────────────────────┐
-│ (burger) ▰▰▰▰▰▰▱▱▱▱        │  hunger bar - the icon says what it is
-│ (smiley) ▰▰▰▰▰▱▱▱▱▱        │  happy bar
+│ (burger) ▰▰▰▰▰▰▱▱▱▱   *  *  │  hunger bar - the icon says what it is
+│ (smiley) ▰▰▰▰▰▱▱▱▱▱ (moon) │  happy bar
 │              ( ! )         │  one pulsing call over the pet; tap = the fix
 │            ( pet )         │  pet centred on a soft pedestal (the hero)
-│ [burger][ball][drop][+]    │  four 80px tiles, white icon + one small word
+│ ~~~~~~~~~~ ground ~~~~~~~~~│
+│  (feed) (play) (clean)(med)│  four round candy buttons, white icons, no words
 └────────────────────────────┘
 ```
 
-The screen is icons-first — no clock, no stage, no captions, no toasts — but two
-lessons were learned the hard way and are worth copying:
+The theme is **"cozy night"**: a deep navy sky with a few stars and a moon, a
+ground band, muted candy buttons. It stays nearly black (AMOLED-friendly) while
+still feeling like a place rather than an empty panel. The screen is truly
+icon-only — no clock, no stage, no captions, no toasts, and no words on the
+buttons (the owner asked for that after seeing labelled tiles).
+
+Two lessons learned the hard way and worth copying:
 - **A bar beats a heart row for needs.** Hearts look nice but a newcomer cannot
   tell what they measure; a rounded bar next to a *concrete icon* (a burger for
   hunger, a smiley for mood) reads instantly.
-- **Pick unmistakable shapes, and label the tile.** Abstract glyphs (a star, a
-  ring) failed clear user testing; a burger, a ball, a water drop and a medical
-  cross did not. Even icon-first screens benefit from **one small word** per tile.
+- **Pick unmistakable shapes.** Abstract glyphs (a star, a ring) failed clear
+  user testing; a burger, a ball, a water drop and a medical cross did not.
 
 Settings (time, brightness, reset) hide behind a long-press on the pet; a dead
 pet restarts on a tap.

@@ -187,13 +187,18 @@ hunger/happy) and a single good/bad adult branch rather than the P1's full roste
 Icon-only hero screen (v3, 2026-09-19 — see the `lvgl-ui` skill, `references/screens.md`).
 No words at rest: hearts, the pet, one call, four candy tiles.
 
+"Cozy night" theme, chosen by the owner from mocked options (scene `A72ceSRfIgH`):
+a deep navy sky with a few stars and a moon, a ground band, muted candy tiles.
+Icon-only, no words.
+
 ```
 ┌────────────────────────────┐
-│ (food) ▰▰▰▰▰▰▱▱▱▱          │  hunger bar, orange, burger icon labels it
-│ ( :-) ) ▰▰▰▰▰▰▱▱▱▱         │  happy bar, pink, smiley icon labels it
+│ (burger) ▰▰▰▰▰▰▱▱▱▱  *   *  │  hunger bar (warm); starfield + moon
+│ ( :-) )  ▰▰▰▰▰▰▱▱▱▱  (moon) │  happy bar (pink)
 │              ( ! )         │  one pulsing "call" over the pet; tap = fix
 │            ( pet )         │  pet centred on a soft pedestal (the hero)
-│ [burger][ball][drop][+ ]   │  four 80 px tiles, white icon + tiny label
+│ █████ ground band █████    │
+│  (feed) (play) (clean)(med)│  four round candy buttons, white icons, no words
 └────────────────────────────┘
 ```
 
@@ -201,8 +206,8 @@ No words at rest: hearts, the pet, one call, four candy tiles.
 lights the matching tile; `pet_action_enabled()` drives each tile's disabled
 state. Icons are a generated image set (`tools/sprites/make_icons.py` → RGB565A8)
 with unmistakable shapes (burger = feed, ball = play, water drop = clean, cross =
-medicine, smiley = happy), each tile carrying one small word so it is never
-ambiguous. Settings (time, brightness, reset) hide behind a long-press on the pet.
+medicine, smiley = happy). Settings (time, brightness, reset) hide behind a
+long-press on the pet.
 
 Touch rules from the field guide: parallax puts contact **15–25 px below** the target ⇒ every
 hit zone extended ~20 px downward (`lv_obj_set_ext_click_area`), nothing under 40 px tall,
