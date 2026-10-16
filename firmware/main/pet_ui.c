@@ -73,6 +73,9 @@ static give_t s_give;
 static bool s_eating;
 static int s_eat_ticks;
 static uint32_t s_anim_tick;
+static int s_prev_asleep = -1;
+static const lv_image_dsc_t **s_trans_seq;
+static int s_trans_len, s_trans_left;
 
 static const pet_action_t BTN_ACT[3] = {PET_ACT_FEED_MEAL, PET_ACT_DRINK, PET_ACT_LIGHTS};
 static const lv_image_dsc_t *BTN_ICON[3] = {&ic_feed, &ic_water, &ic_sleep};
@@ -100,15 +103,19 @@ static void btn_styles_init(void)
 // Frame sequences (see tools/sprites/make_icons.py). Idle blinks and breathes;
 // eat/drink run a chew cycle; sleep breathes slowly.
 static const lv_image_dsc_t *IDLE_SEQ[] = {
-    &rabbit_idle_0, &rabbit_idle_1, &rabbit_idle_2, &rabbit_idle_3,
-    &rabbit_idle_4, &rabbit_idle_5, &rabbit_idle_6, &rabbit_idle_7,
+    &rabbit_idle_0, &rabbit_idle_1, &rabbit_idle_2, &rabbit_idle_3, &rabbit_idle_4,
+    &rabbit_idle_5, &rabbit_idle_6, &rabbit_idle_7, &rabbit_idle_8, &rabbit_idle_9,
 };
 static const lv_image_dsc_t *EAT_SEQ[] = {
-    &rabbit_eat_0, &rabbit_eat_1, &rabbit_eat_2, &rabbit_eat_3,
+    &rabbit_eat_0, &rabbit_eat_1, &rabbit_eat_2, &rabbit_eat_3, &rabbit_swallow,
 };
 static const lv_image_dsc_t *DRINK_SEQ[] = {
-    &rabbit_drink_0, &rabbit_drink_1, &rabbit_drink_2, &rabbit_drink_3,
+    &rabbit_drink_0, &rabbit_drink_1, &rabbit_drink_2, &rabbit_drink_3, &rabbit_swallow,
 };
+static const lv_image_dsc_t *DROOP_SEQ[] = {
+    &rabbit_droop_0, &rabbit_droop_1, &rabbit_droop_2, &rabbit_droop_3,
+};
+static const lv_image_dsc_t *WAKE_SEQ[] = {&rabbit_wake_0, &rabbit_wake_1};
 static const lv_image_dsc_t *SLEEP_SEQ[] = {&rabbit_sleep_0, &rabbit_sleep_1};
 
 #define NSEQ(a) (int)(sizeof(a) / sizeof((a)[0]))
@@ -131,14 +138,29 @@ static void anim_cb(lv_timer_t *t)
 
     if (s->stage == PET_STAGE_EGG) {
         f = &rabbit_egg;
-    } else if (s_eating) {
-        const lv_image_dsc_t **seq = (s_give == GIVE_WATER) ? DRINK_SEQ : EAT_SEQ;
-        f = seq[s_anim_tick % NSEQ(EAT_SEQ)];
-        if (--s_eat_ticks <= 0) s_eating = false;
-    } else if (s->asleep) {
-        f = SLEEP_SEQ[(s_anim_tick / 8) % NSEQ(SLEEP_SEQ)];   // slow breathing
     } else {
-        f = IDLE_SEQ[(s_anim_tick / 3) % NSEQ(IDLE_SEQ)];     // blink every ~2.4 s
+        // falling asleep / waking plays a short transition first
+        if (s_prev_asleep < 0) {
+            s_prev_asleep = s->asleep;
+        } else if ((int)s->asleep != s_prev_asleep) {
+            s_prev_asleep = s->asleep;
+            s_trans_seq = s->asleep ? DROOP_SEQ : WAKE_SEQ;
+            s_trans_len = s->asleep ? NSEQ(DROOP_SEQ) : NSEQ(WAKE_SEQ);
+            s_trans_left = s_trans_len;
+        }
+
+        if (s_eating) {
+            const lv_image_dsc_t **seq = (s_give == GIVE_WATER) ? DRINK_SEQ : EAT_SEQ;
+            f = seq[s_anim_tick % NSEQ(EAT_SEQ)];
+            if (--s_eat_ticks <= 0) s_eating = false;
+        } else if (s_trans_left > 0) {
+            f = s_trans_seq[s_trans_len - s_trans_left];
+            s_trans_left--;
+        } else if (s->asleep) {
+            f = SLEEP_SEQ[(s_anim_tick / 8) % NSEQ(SLEEP_SEQ)];   // slow breathing
+        } else {
+            f = IDLE_SEQ[(s_anim_tick / 3) % NSEQ(IDLE_SEQ)];     // blink + ear twitch
+        }
     }
     show_frame(f);
     s_anim_tick++;
